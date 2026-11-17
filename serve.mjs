@@ -59,6 +59,35 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    /* ---- 카카오 맵/로컬 API 프록시 (SDK 진단용) ----
+       사용: /proxy/kakaomaps?path=v2/maps/sdk.js?appkey=...&...
+       - path 파라미터는 dapi.kakao.com 내부 경로만 허용(화이트리스트) → 오픈 프록시 방지
+       - 서버 사이드에서 fetch 후 응답을 그대로 중계 → 브라우저 CORS 차단 우회
+       - 응답 HTTP 상태를 그대로 반환 → SDK 진단 시 키/도메인 문제 판별에 활용 */
+    if (url.pathname === "/proxy/kakaomaps") {
+      const path = url.searchParams.get("path") || "";
+      if (!/^v2\/(maps|local)\/[A-Za-z0-9_.\/?=&-]+$/.test(path)) {
+        res.writeHead(400, { "Content-Type": "text/plain; charset=utf-8" });
+        return res.end("허용되지 않는 카카오 API 경로입니다. (dapi.kakao.com/v2 경로만 허용)");
+      }
+      const relay = new URLSearchParams();
+      for (const [k, v] of url.searchParams) if (k !== "path") relay.append(k, v);
+      const target = `https://dapi.kakao.com/${path}?${relay.toString()}`;
+      try {
+        const upstream = await fetch(target, { headers: { "User-Agent": "OpenNatri/1.0" } });
+        res.writeHead(upstream.status, {
+          "Content-Type": upstream.headers.get("content-type") || "application/json; charset=utf-8",
+          "Cache-Control": "no-store",
+          "Access-Control-Allow-Origin": "*",
+        });
+        res.end(Buffer.from(await upstream.arrayBuffer()));
+      } catch (e) {
+        res.writeHead(502, { "Content-Type": "text/plain; charset=utf-8" });
+        res.end(`카카오 API 요청 실패: ${e.message}`);
+      }
+      return;
+    }
+
     let p = decodeURIComponent(url.pathname);
     if (p.endsWith("/")) p += "index.html";
     const file = normalize(join(root, p));

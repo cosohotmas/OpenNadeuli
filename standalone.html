@@ -1041,7 +1041,7 @@ body {
   <div id="toast" class="toast" role="status" hidden></div>
 
   <script>
-/* 단일 파일 빌드: ES 모듈 번들을 합친 스크립트 (2026-11-17T14:11:05.848Z) */
+/* 단일 파일 빌드: ES 모듈 번들을 합친 스크립트 (2026-11-17T14:14:41.774Z) */
 /* ====== js/data.js ====== */
 /**
  * 내장 샘플 데이터 (시연용)
@@ -4181,7 +4181,7 @@ function renderRouteSection(content, answer) {
     const p = pts[i];
     const c = resolved[i];
     return c
-      ? `https://map.kakao.com/link/map/${encodeURIComponent(p.name)},${c.lng},${c.lat}`
+      ? `https://map.kakao.com/link/map/${encodeURIComponent(p.name)},${c.lat},${c.lng}`
       : `https://map.kakao.com/?q=${encodeURIComponent(p.name || p.query)}`;
   };
   const sec = el("section", "route-section");

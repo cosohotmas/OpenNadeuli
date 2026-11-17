@@ -439,7 +439,7 @@ function renderRouteSection(content, answer) {
     const p = pts[i];
     const c = resolved[i];
     return c
-      ? `https://map.kakao.com/link/map/${encodeURIComponent(p.name)},${c.lng},${c.lat}`
+      ? `https://map.kakao.com/link/map/${encodeURIComponent(p.name)},${c.lat},${c.lng}`
       : `https://map.kakao.com/?q=${encodeURIComponent(p.name || p.query)}`;
   };
   const sec = el("section", "route-section");
