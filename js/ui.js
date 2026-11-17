@@ -1,7 +1,17 @@
 /**
- * ui.js — 화면·인터랙션 계층
- * 채팅 메시지, 에이전트 상태 타임라인, 도구 호출 칩, 코스 카드,
- * 초대장/설정 모달, 토스트를 렌더링한다.
+ * ui.js — UI & Interaction Layer / 화면·인터랙션 계층
+ * Renders chat messages, agent status timeline, tool call chips, course cards,
+ * invitation/settings modals, and toast notifications / 채팅 메시지, 에이전트 상태 타임라인, 도구 호출 칩, 코스 카드, 초대장/설정 모달, 토스트를 렌더링한다.
+ *
+ * Execution order / 실행 순서:
+ * 1. init(): Register event listeners, load settings, show welcome / 1. 이벤트 리스너 등록, 설정 로드, 환영 메시지 표시
+ * 2. submit(): User sends message → call agent.handle() → render answer via handlers / 2. 사용자 메시지 전송 → 에이전트 핸들러 호출 → 핸들러를 통해 응답 렌더링
+ * 3. renderRouteSection(): Render route summary + Kakao Map / 3. 전체 동선 요약 + 카카오맵 렌더링
+ * 4. ensureKakao(): Load Kakao Maps SDK v2 / 4. 카카오맵 JS SDK v2 로드
+ * 5. geocodePoint(): Kakao POI search → Nominatim fallback / 5. 카카오 POI 검색 → Nominatim 폴백
+ *
+ * No API keys are hardcoded / API 키는 하드코딩되지 않음.
+ * Kakao Maps JavaScript key comes from settings modal (localStorage) / 카카오 맵 JavaScript 키는 설정 모달(localStorage)에서 가져옴.
  */
 
 import { BADGE_DEFS } from "./data.js";

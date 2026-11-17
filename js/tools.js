@@ -1,72 +1,83 @@
 /**
- * tools.js — 에이전트 도구 계층 (Function Calling 대상 3종)
+ * tools.js — Agent tool layer (Function Calling targets: 4 tools) / 에이전트 도구 계층 (Function Calling 대상 4종)
  *
- * 각 도구는 OpenAI 스타일 함수 정의(name/description/parameters)를 갖고,
- * 호출 시 다음 순서로 동작한다.
- *   1) 실시간 모드 + API 키가 있으면 공공데이터포털 실제 호출 시도 (LIVE_APIS)
- *   2) 실패(키 없음·CORS·형식 불일치) 시 동일 스펙의 내장 샘플 데이터로 자동 폴백
- *   3) 필터링 규칙(경사도 8% 이하, 출입구 턱 없음 등)을 적용하고
- *      '제외 사유'까지 반환해 에이전트가 근거를 화면에 표시할 수 있게 한다.
+ * Each tool has an OpenAI-style function definition (name/description/parameters) / 각 도구는 OpenAI 스타일 함수 정의(name/description/parameters)를 가짐.
+ * Call order / 호출 순서:
+ *   1) If live mode + API key, try real public data portal API call (LIVE_APIS) / 실시간 모드 + API 키가 있으면 공공데이터포털 실제 호출 시도
+ *   2) On failure (no key, CORS, format mismatch), fall back to built-in sample data with same spec / 실패 시 동일 스펙의 내장 샘플 데이터로 자동 폴백
+ *   3) Apply filtering rules (max slope 8%, step-free entrance, etc.) and return 'exclusion reasons' so agent can display rationale on UI / 필터링 규칙 적용 및 제외 사유 반환
+ *
+ * No API keys are hardcoded / API 키는 하드코딩되지 않음.
+ * Keys come from browser localStorage via loadSettings() / 설정은 loadSettings()를 통해 브라우저 localStorage에서 가져옴.
  */
 
 import { TOURIST_SPOTS, TRAILS, RESTAURANTS, HOTELS } from "./data.js";
 
-/* ---------------------- 도구 정의(스키마) ---------------------- */
+/* ---------------------- Tool definitions (schemas) / 도구 정의(스키마) ---------------------- */
 
 export const TOOL_SPECS = [
   {
+    // Tool 1: Search barrier-free tourist spots / 도구 1: 무장애 관광지 검색
+    // Uses Korea Tourism Organization API (KorWithService2) / 한국관광공사 API(KorWithService2) 사용
     name: "searchOpenTouristSpots",
     label: "한국관광공사·열린관광지 정보 API",
     icon: "🏛️",
-    description: "휠체어 대여, 장애인 화장실, 휠체어 진입 등 무장애 정보가 완비된 관광지를 검색한다.",
+    description: "Search tourist spots with complete barrier-free info (wheelchair rental, disabled toilet, wheelchair access) / 휠체어 대여, 장애인 화장실, 휠체어 진입 등 무장애 정보가 완비된 관광지를 검색한다.",
     parameters: {
       type: "object",
       properties: {
-        region: { type: "string", description: "지역명 (전국 시·도: 부산/서울/제주/강원/인천/경남/경북 등)" },
-        themes: { type: "array", items: { type: "string" }, description: "테마 (sea/park/culture/indoor)" },
-        indoorOnly: { type: "boolean", description: "우천 시 실내·반실내 장소만" },
+        region: { type: "string", description: "Region name (e.g., 부산/서울/제주/강원/인천/경남/경북) / 지역명" },
+        themes: { type: "array", items: { type: "string" }, description: "Themes (sea/park/culture/indoor) / 테마" },
+        indoorOnly: { type: "boolean", description: "Indoor/semi-indoor only for rainy days / 우천 시 실내·반실내 장소만" },
       },
       required: ["region"],
     },
   },
   {
+    // Tool 2: Search accessible trails (max slope 8%) / 도구 2: 무장애 탐방로 검색 (최대 경사도 8% 이하)
+    // Uses local sample data (no public API available for trails) / 탐방로는 내장 샘플 데이터 사용 (공개 API 없음)
     name: "searchAccessibleTrails",
     label: "국립공원공단·지자체 무장애 탐방로(데크길) API",
     icon: "🌲",
-    description: "최대 경사도 8% 이하의 완만한 산책로·데크길을 검색한다. 경사도 기준 초과 구간은 제외한다.",
+    description: "Search gentle walking paths and deck trails with max slope 8% or less. Excludes segments exceeding the slope limit / 최대 경사도 8% 이하의 완만한 산책로·데크길을 검색한다. 경사도 기준 초과 구간은 제외한다.",
     parameters: {
       type: "object",
       properties: {
-        region: { type: "string", description: "지역명" },
+        region: { type: "string", description: "Region name / 지역명" },
         themes: { type: "array", items: { type: "string" } },
-        maxSlope: { type: "number", description: "허용 최대 경사도(%)", default: 8 },
+        maxSlope: { type: "number", description: "Maximum allowed slope (%) / 허용 최대 경사도(%)", default: 8 },
       },
       required: ["region"],
     },
   },
   {
+    // Tool 3: Search barrier-free hotels (for 1-night 2-day courses) / 도구 3: 무장애 숙소 검색 (1박 2일 코스용)
+    // Uses Korea Tourism Organization API (KorWithService2, contenttypeid=32) / 한국관광공사 API 사용 (contenttypeid=32)
     name: "searchStayHotels",
     label: "한국관광공사·무장애 숙박(호텔) API",
     icon: "🏨",
-    description: "1박 2일 코스용 — 휠체어 이용 가능한 숙소(호텔·리조트)를 검색한다.",
+    description: "For 1-night 2-day courses — search wheelchair-accessible hotels/resorts / 1박 2일 코스용 — 휠체어 이용 가능한 숙소(호텔·리조트)를 검색한다.",
     parameters: {
       type: "object",
       properties: {
-        region: { type: "string", description: "지역명" },
+        region: { type: "string", description: "Region name / 지역명" },
       },
       required: ["region"],
     },
   },
   {
+    // Tool 4: Search step-free restaurants near selected activity / 도구 4: 선정된 활동 인근 턱 없는 식당 검색
+    // Uses Small Business Market Information API (sdsc2) / 소상공인시장진흥공단 상권정보 API(sdsc2) 사용
+    // Note: 'step-free entrance' info is not in this API, so live results carry 'verify on site' badge / 참고: 이 API에는 '출입구 턱' 정보가 없어 라이브 결과는 '현장 확인 필요' 배지 붙임
     name: "searchStepFreeRestaurants",
     label: "소상공인시장진흥공단·상권정보 API",
     icon: "🍚",
-    description: "출입구 턱이 없는(step-free) 인근 식당을 검색한다. 턱이 있는 매장은 제외한다.",
+    description: "Search nearby restaurants with step-free entrance. Excludes venues with steps at entrance / 출입구 턱이 없는(step-free) 인근 식당을 검색한다. 턱이 있는 매장은 제외한다.",
     parameters: {
       type: "object",
       properties: {
-        subAreas: { type: "array", items: { type: "string" }, description: "인근 상권(서브지역) 목록" },
-        region: { type: "string", description: "지역명" },
+        subAreas: { type: "array", items: { type: "string" }, description: "List of nearby sub-areas (commercial districts) / 인근 상권(서브지역) 목록" },
+        region: { type: "string", description: "Region name / 지역명" },
       },
       required: ["subAreas"],
     },
@@ -90,21 +101,25 @@ export const TOOL_SPECS = [
  *
  * 호출은 CORS 제약 때문에 1) 브라우저 직접 호출 2) serve.mjs /proxy/openapi 3) JSONP 순으로 진행된다.
  */
-/* TourAPI 표준 지역코드 (areaCodeList 기준) */
+/* TourAPI standard region codes (based on areaCodeList) / TourAPI 표준 지역코드 (areaCodeList 기준) */
 const AREA_CODE = {
   서울: "1", 인천: "2", 대전: "3", 대구: "4", 광주: "5", 부산: "6", 울산: "7", 세종: "8",
   경기: "31", 강원: "32", 충북: "33", 충남: "34", 경북: "35", 경남: "36", 전북: "37", 전남: "38", 제주: "39",
 };
 
+/* Live API configurations / 라이브 API 설정 */
 export const LIVE_APIS = {
+  // Tool: searchOpenTouristSpots — Korea Tourism Organization barrier-free travel API / 도구: 관광지 검색 — 한국관광공사 무장애여행 API
   searchOpenTouristSpots: {
     url: "https://apis.data.go.kr/B551011/KorWithService2/areaBasedList2",
     keywordless: true,
+    // Build request parameters / 요청 파라미터 구성
     buildParams: (kw, args, key) => ({
       serviceKey: key, numOfRows: "20", pageNo: "1",
       MobileOS: "ETC", MobileApp: "OpenNatri",
       areaCode: AREA_CODE[args.region] || "", _type: "json",
     }),
+    // Map API response to internal item format / API 응답을 내부 아이템 형식으로 매핑
     map: (json, args) => {
       const raw = itemsOf(json);
       const region = args.region || "";
@@ -126,7 +141,7 @@ export const LIVE_APIS = {
         : "";
       return { items, note };
     },
-    /* areaBasedList2가 0건일 때 키워드 검색으로 재시도 */
+    // Fallback: keyword search if areaBasedList2 returns 0 results / 0건이면 키워드 검색으로 재시도
     fallback: {
       url: "https://apis.data.go.kr/B551011/KorWithService2/searchKeyword2",
       keywords: ["무장애", "휠체어", "배리어프리"],
@@ -137,11 +152,13 @@ export const LIVE_APIS = {
       }),
     },
   },
+  // Tool: searchAccessibleTrails — no public API available, uses local sample data / 도구: 탐방로 검색 — 공개 API 없음, 내장 샘플 데이터 사용
   searchAccessibleTrails: {
     url: "",
     note: "국립공원·지자체 무장애 탐방로는 data.go.kr에 OpenAPI가 없음(파일데이터만 제공 확인) → 내장 데이터 사용",
   },
-  /* 숙박: 무장애여행 정보 서비스의 숙박 콘텐츠(contenttypeid=32) — 관광지 도구와 같은 키 사용 */
+  // Tool: searchStayHotels — barrier-free hotels from KorWithService2 (contenttypeid=32) / 도구: 숙소 검색 — KorWithService2 무장애 숙박 콘텐츠(contenttypeid=32)
+  // Uses the same API key as searchOpenTouristSpots / 관광지 도구와 같은 API 키 사용
   searchStayHotels: {
     url: "https://apis.data.go.kr/B551011/KorWithService2/areaBasedList2",
     keywordless: true,
@@ -170,7 +187,7 @@ export const LIVE_APIS = {
         : "";
       return { items, note };
     },
-    /* 0건이면 숙박 키워드로 재시도 */
+    // Fallback: keyword search for hotels / 0건이면 숙박 키워드로 재시도
     fallback: {
       url: "https://apis.data.go.kr/B551011/KorWithService2/searchKeyword2",
       keywords: ["호텔", "리조트", "모텔", "숙박"],
@@ -181,6 +198,9 @@ export const LIVE_APIS = {
       }),
     },
   },
+  // Tool: searchStepFreeRestaurants — Small Business Market Information API / 도구: 식당 검색 — 소상공인 상권정보 API
+  // Radius 600m around activity coordinates / 활동 좌표 기준 반경 600m 내 상가업소 중 음식점 선별
+  // Note: 'step-free entrance' info is NOT in this API → live results get 'verify on site' badge / 참고: 이 API에는 '출입구 턱' 정보가 없어 라이브 결과는 '현장 확인 필요' 배지
   searchStepFreeRestaurants: {
     url: "https://apis.data.go.kr/B553077/api/open/sdsc2/storeListInRadius",
     keywordless: true,
@@ -607,17 +627,31 @@ export function mergeSpotPools(liveItems, sampleResult) {
 }
 
 /**
- * 도구 실행. 반환값:
- * { tool, args, source: "sample"|"live", items, excluded, note }
+ * Execute a tool with live API fallback / 도구 실행. 라이브 API 폴백 포함.
+ * Return value / 반환값:
+ * { tool, args, source: "sample"|"live"|"snapshot", items, excluded, note }
+ *
+ * Execution order / 처리 순서:
+ * 1. Find tool spec by name / 도구 이름으로 스펙 찾기
+ * 2. Add artificial delay for UI visualization / UI 시각화를 위한 인공 지연 추가
+ * 3. Try live public API call / 라이브 공공 API 호출 시도
+ * 4. If live succeeds: enrich + merge with verified sample data / 라이브 성공 시: 상세 검증 + 검증 샘플 데이터 병합
+ * 5. If live fails: try measured snapshot (actual API response capture, no key needed) / 라이브 실패 시: 실측 스냅샷 시도 (키 불필요)
+ * 6. If snapshot fails: filter built-in sample data / 스냅샷 실패 시: 내장 샘플 데이터 필터링
+ * 7. Return result with source info / 소스 정보와 함께 결과 반환
  */
 export async function callTool(name, args, settings = DEFAULT_SETTINGS) {
+  // 1) Find tool spec / 1) 도구 스펙 찾기
   const spec = TOOL_SPECS.find((t) => t.name === name);
-  if (!spec) throw new Error(`알 수 없는 도구: ${name}`);
+  if (!spec) throw new Error(`Unknown tool: ${name}` / `알 수 없는 도구: ${name}`);
 
-  await sleep(550 + Math.random() * 450); // 도구 호출 지연(시각화용)
+  // 2) Artificial delay for UI visualization / 2) UI 시각화를 위한 인공 지연
+  await sleep(550 + Math.random() * 450);
+
+  // 3) Try live public API call / 3) 라이브 공공 API 호출 시도
   const live = await tryLive(spec, args, settings);
 
-  /* 실시간 성공: 공공데이터 결과를 그대로 사용. 관광지는 상세 검증(배지 갱신) + 검증 데이터 병합 후 반환 */
+  // 4) Live success: use public data directly. For tourist spots, enrich with detail verification + merge verified sample data first / 4) 라이브 성공: 공공 데이터 직접 사용. 관광지는 상세 검증 후 검증된 샘플 데이터 우선 병합
   if (live?.ok) {
     let items = live.items;
     let note = live.note;
@@ -629,7 +663,7 @@ export async function callTool(name, args, settings = DEFAULT_SETTINGS) {
     return { tool: spec, args, source: "live", liveNote: note, items, excluded: [] };
   }
 
-  /* 실시간 실패 시 실측 스냅샷(실제 API 응답 캡처본) 사용 — 인증키 불필요 */
+  // 5) Live failed: try measured snapshot (actual API response capture, no API key needed) / 5) 라이브 실패: 실측 스냅샷 시도 (실제 API 응답 캡처본, 인증키 불필요)
   const snap = await getSnapshot();
   if (snap) {
     const s = snapshotItems(name, args, snap);
@@ -642,13 +676,14 @@ export async function callTool(name, args, settings = DEFAULT_SETTINGS) {
     }
   }
 
+  // 6) Snapshot failed: filter built-in sample data / 6) 스냅샷 실패: 내장 샘플 데이터 필터링
   let filtered;
   if (name === "searchOpenTouristSpots") filtered = filterSpots(args);
   else if (name === "searchAccessibleTrails") filtered = filterTrails(args);
   else if (name === "searchStayHotels") filtered = filterHotels(args);
   else filtered = filterRestaurants(args);
 
-  /* 라이브 실패 사유 + 샘플 대체 사유를 한 줄로 합쳐 노트 표시 */
+  // 7) Combine live failure reason and sample fallback reason into one note / 7) 라이브 실패 사유와 샘플 대체 사유를 하나의 노트로 합침
   const note = [live?.note, filtered.regionNote].filter(Boolean).join(" · ") || null;
 
   return {
@@ -661,15 +696,17 @@ export async function callTool(name, args, settings = DEFAULT_SETTINGS) {
   };
 }
 
-/** 설정 저장소(localStorage) */
+/** Settings storage (localStorage) / 설정 저장소(localStorage) */
+/* Reads settings from browser localStorage. Never reads .env directly on the client / 브라우저 localStorage에서 설정 읽기. 클라이언트에서는 .env를 직접 읽지 않음 */
 export function loadSettings() {
   try {
     const raw = localStorage.getItem("opennatri.settings.v1");
     if (raw) return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
-  } catch (_) { /* 저장소 미사용 환경 */ }
+  } catch (_) { /* Storage not available / 저장소 사용 불가 환경 */ }
   return { ...DEFAULT_SETTINGS };
 }
 
+/* Saves settings to browser localStorage. API keys stay in the browser, never sent externally / 설정을 브라우저 localStorage에 저장. API 키는 브라우저에만 보관, 외부로 전송 안 함 */
 export function saveSettings(s) {
   try { localStorage.setItem("opennatri.settings.v1", JSON.stringify(s)); } catch (_) {}
 }

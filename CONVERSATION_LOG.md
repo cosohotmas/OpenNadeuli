@@ -28,7 +28,7 @@
 - `serve.mjs`에 `/proxy/kakaomaps` 프록시 미확인 (구버전, 인수인계 §5 미적용)
 
 ### 다음 할 일
-1. GitHub 레포지토리 초기화 및 초기 커밋 준비 (`.env`는 커밋 제외, `.env.example` 작성 필요)
+1. Vercel에 GitHub 레포 연결하여 배포 (이미 배포 중인 서비스라면 프로젝트 연동)
 2. 인수인계 §5 미적용 항목 검토:
    - `serve.mjs`에 `/proxy/kakaomaps` 프록시 추가
    - 카카오 링크 좌표 순서 버그 수정 (`lng,lat` → `lat,lng`)
@@ -39,3 +39,5 @@
 ### 결정 근거
 - 카카오 SDK `bounds.clear` 제거: Kakao Maps SDK v2 문서상 `LatLngBounds`에 `.clear()` 메서드 없음. 콘솔 에러 `TypeError: bounds.clear is not a function` 실측 확인.
 - 프로젝트 복제: 기존 `helpy2.1/OpenNadeuli`와 동일한 상태로 GitHub 이관을 위한 독립 폴더 생성.
+- GitHub 레포: `https://github.com/cosohotmas/OpenNadeuli.git`에 main 브랜치로 푸시 완료 (2026-11-17)
+- `.env`는 `.gitignore`로 제외, `.env.example`만 관리. Vercel 배포 시 Environment Variables에 실제 API 키 등록 필요.

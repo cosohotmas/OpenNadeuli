@@ -1,21 +1,21 @@
 /**
- * agent.js — 오픈나들이 AI 에이전트 파이프라인
+ * agent.js — OpenNadeuli AI Agent Pipeline / 오픈나들이 AI 에이전트 파이프라인
  *
- * 동작 구조 (Function Calling 파이프라인):
+ * Pipeline structure / 동작 구조 (Function Calling 파이프라인):
  *
- *   사용자 발화
+ *   User utterance / 사용자 발화
  *      │
- *      ├─ 1. 의도 분석 (nlu.parseIntent)  → 지역/테마/동행/우천/일정 파라미터화
- *      ├─ 2. 도구 조합 계획               → 3개 도구 호출 순서 확정
- *      ├─ 3. 도구 자율 호출 (tools.callTool)
- *      │      ① searchOpenTouristSpots     (한국관광공사 열린관광지)
- *      │      ② searchAccessibleTrails     (무장애 탐방로·데크길, 경사도 ≤8%)
- *      │      ③ searchStepFreeRestaurants  (상권정보, 출입구 턱 없음)
- *      │      ※ ③은 ①②의 결과(인근 상권)를 인자로 사용 — 도구 체이닝
- *      ├─ 4. 검증·필터링                  → 제외 사유를 근거로 반환
- *      └─ 5. 코스 조립·응답 생성          → 카드/배지/팁/초대장/후속 질문
+ *      ├─ 1. Intent analysis (nlu.parseIntent)  → Region/theme/companion/weather/schedule parameters / 지역/테마/동행/우천/일정 파라미터화
+ *      ├─ 2. Tool combination planning / 도구 조합 계획 → Determine tool call order / 3개 도구 호출 순서 확정
+ *      ├─ 3. Autonomous tool calls (tools.callTool) / 도구 자율 호출
+ *      │      ① searchOpenTouristSpots     (Korea Tourism Organization Open API / 한국관광공사 열린관광지)
+ *      │      ② searchAccessibleTrails     (Barrier-free walking paths, max slope ≤8% / 무장애 탐방로·데크길, 경사도 ≤8%)
+ *      │      ③ searchStepFreeRestaurants  (Small business info API, step-free entrance / 상권정보, 출입구 턱 없음)
+ *      │      ※ ③ uses results from ①② as arguments — tool chaining / ③은 ①②의 결과(인근 상권)를 인자로 사용 — 도구 체이닝
+ *      ├─ 4. Verification & filtering / 검증·필터링 → Return exclusion reasons as rationale / 제외 사유를 근거로 반환
+ *      └─ 5. Course assembly & response generation / 코스 조립·응답 생성 → Cards/badges/tips/invitation/follow-up questions / 카드/배지/팁/초대장/후속 질문
  *
- * 각 단계는 핸들러(h)로 이벤트를 내보내 UI에서 실시간 스트리밍된다.
+ * Each stage emits events via handler (h) for real-time streaming in UI / 각 단계는 핸들러(h)로 이벤트를 내보내 UI에서 실시간 스트리밍됨.
  */
 
 import { REGIONS, REGION_MAIN_SUBAREA, REGION_CENTER, BADGE_DEFS } from "./data.js";
@@ -42,27 +42,32 @@ export class OutingAgent {
   }
 
   /**
-   * 사용자 발화 처리
-   * @param {string} text
-   * @param {object} h 이벤트 핸들러 { onStatus, onStatusDone, onTool, onToolDone, onAnswer, onNote }
-   * @param {object} [extras] UI 컨트롤 값 — { timeRange: { s, e } } (시간대 슬라이더, 단위: 시 8~20)
+   * Process user utterance / 사용자 발화 처리 — 파이프라인 메인 진입점
+   * @param {string} text — User input text / 사용자 입력 텍스트
+   * @param {object} h — Event handlers { onStatus, onStatusDone, onTool, onToolDone, onAnswer, onNote } / 이벤트 핸들러
+   * @param {object} [extras] — UI control values — { schedule: { tripType, d1, d2, meal, cafe, hotel } } / UI 컨트롤 값
+   *
+   * Execution order / 처리 순서:
+   * 1. Parse intent (nlu.parseIntent) / 1. 의도 분석
+   * 2. Handle greeting / no hint → return greeting answer / 인사 또는 힌트 없음 → 안내 응답 반환
+   * 3. Determine region (respect nextRegion, lastIntent, defaultRegion) / 3. 지역 결정 (다음 지역, 마지막 의도, 기본 지역 순서로 존중)
+   * 4. Normalize schedule from UI slider (00:00~24:00, always respected) / 4. UI 슬라이더에서 일정 정규화 (00:00~24:00, 항상 존중)
+   * 5. Build schedule events / 5. 일정 이벤트 구성
+   * 6. Detect spots list mode (N tourist spots instead of course) / 6. 여행지 목록 모드 감지 (코스 대신 관광지 N곳)
+   * 7. Add option/schedule labels / 7. 옵션·일정 라벨 추가
    */
   async handle(text, h, extras) {
+    // 1) Parse intent / 1) 의도 분석
     const intent = parseIntent(text);
 
-    /* 인사·안내 요청 */
+    // 2) Greeting or no hint → return greeting answer / 2) 인사 또는 힌트 없음 → 안내 응답
     if (intent.greeting) { h.onAnswer(greetingAnswer()); return; }
 
-    /* 코스 요청 판단: 힌트가 전혀 없으면 안내 응답 */
     const hasHint = intent.region || intent.themes.length || intent.mobility.length ||
       intent.restaurantsOnly || intent.anotherCourse || intent.outing || (intent.text || "").length >= 8;
     if (!hasHint) { h.onAnswer(greetingAnswer()); return; }
 
-    /* ---------- 1단계: 의도 분석 ---------- */
-    const step0 = h.onStatus({ icon: "🧠", title: "요청 분석 중…", labels: intent.labels });
-    await sleep(500);
-
-    /* 지역 결정(후속 질문 맥락 유지) */
+    // 3) Region determination (respect user slider time range, never clamp to 9am) / 3) 지역 결정
     let region = intent.region;
     if (intent.nextRegion) {
       this.regionIdx = (this.regionIdx + 1) % REGIONS.length;
@@ -75,9 +80,9 @@ export class OutingAgent {
     if (intent.anotherCourse) this.variants[region] = (this.variants[region] || 0) + 1;
     const variant = this.variants[region] || 0;
 
-    /* ---------- 일정·시간대 설정(아코디언) → 유연한 스케줄 ---------- */
+    // 4) Normalize schedule from UI accordion → flexible scheduling / 4) UI 아코디언에서 일정 정규화 → 유연한 스케줄
     const sched = normalizeSchedule(extras?.schedule);
-    /* 활동 배치 선호: 실내·문화는 관광지 고정, 산책·바다·공원은 탐방로 교차 */
+    // Activity placement preference: indoor/culture → tourist spots fixed; walk/sea/park → trails / 4-1) 활동 배치 선호
     const pref = {
       trailOk: !intent.indoorOnly && !(intent.themes.length === 1 && intent.themes[0] === "culture"),
     };
@@ -85,13 +90,13 @@ export class OutingAgent {
 
     const ctx = { ...intent, region, variant, schedule: { ...sched, events: scheduleEvents } };
 
-    /* 여행지 N곳 목록 모드: "여행지 3개 추천" — 코스가 아닌 관광지 목록으로 응답 */
+    // 5) Spots list mode: "recommend 3 tourist spots" → list of spots instead of course / 5) 여행지 목록 모드
     const listMode = !ctx.restaurantsOnly && !!intent.spotsList && (intent.wantN || 0) >= 2;
     if (listMode) ctx.labels.push(`형식 · 여행지 ${intent.wantN}곳 목록`);
     ctx.listMode = listMode;
     this.lastIntent = ctx;
 
-    /* 옵션·일정 라벨 */
+    // 6) Option/schedule labels / 6) 옵션·일정 라벨
     if (!listMode && !ctx.restaurantsOnly) {
       if (!intent.labels.some((l) => l.startsWith("일정 ·"))) {
         intent.labels.push(`일정 · ${sched.tripType === "overnight" ? "1박 2일" : "당일"}`);

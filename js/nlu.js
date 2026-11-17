@@ -1,12 +1,14 @@
 /**
- * nlu.js — 규칙 기반 의도 분석기 (자연어 → 파라미터)
+ * nlu.js — Rule-based intent analyzer (Natural language → parameters) / 규칙 기반 의도 분석기
  *
- * Function Calling 파이프라인의 1단계.
- * 사용자 발화에서 지역·테마·동행·날씨·일정·식사 의사를 추출해
- * 도구 호출 인자(arguments)로 변환한다.
- * (LLM 연동 시 이 모듈을 모델 기반 파서로 교체하면 되는 인터페이스)
+ * Step 1 of the Function Calling pipeline / Function Calling 파이프라인의 1단계.
+ * Extracts region, theme, companion, weather, schedule, and meal intent
+ * from user utterance and converts to tool call arguments / 사용자 발화에서 지역·테마·동행·날씨·일정·식사 의사를 추출해 도구 호출 인자로 변환.
+ * (Replace this module with an LLM-based parser when integrating LLM / LLM 연동 시 이 모듈을 모델 기반 파서로 교체하면 됨)
  */
 
+// Region keyword dictionary / 지역 키워드 사전
+// Each entry maps a region name to a list of Korean keywords / 각 항목은 지역명과 해당 한국어 키워드 목록을 매핑
 const REGION_KEYWORDS = [
   { region: "부산", keys: ["부산", "해운대", "기장", "동백섬", "광안리", "송정", "블루라인", "씨라이프", "해변열차"] },
   { region: "서울", keys: ["서울", "여의도", "마곡", "서울숲", "경복궁", "청계천", "성수", "인사동", "광화문", "한강"] },
@@ -51,19 +53,31 @@ function hasAny(text, keys) {
   return keys.some((k) => text.includes(k));
 }
 
-/** 발화 → 구조화된 의도(intent) */
+/**
+ * Convert user utterance to structured intent object / 발화 → 구조화된 의도(intent) 객체 변환
+ *
+ * Processing order / 처리 순서:
+ * 1. Normalize text (trim, lowercase) / 텍스트 정규화 (공백 제거, 소문자 변환)
+ * 2. Match region keywords / 지역 키워드 매칭
+ * 3. Match theme keywords (multiple possible) / 테마 키워드 매칭 (복수 가능)
+ * 4. Match weather, companion, schedule, meal keywords / 날씨·동행·일정·식사 키워드 매칭
+ * 5. Detect follow-up signals (greeting, another course, region change, etc.) / 후속 요청 신호 감지 (인사, 다른 코스, 지역 변경 등)
+ * 6. Detect "spots list" request (number + place noun) / 여행지 목록 요청 신호 감지 (숫자 + 장소 명사)
+ * 7. Build and return intent object / 의도 객체 생성 및 반환
+ */
 export function parseIntent(rawText) {
+  // 1) Normalize input text / 1) 입력 텍스트 정규화
   const text = (rawText || "").trim();
   const lower = text.toLowerCase();
 
-  /* 지역 */
+  // 2) Match region / 2) 지역 매칭
   const regionHit = REGION_KEYWORDS.find((r) => hasAny(lower, r.keys));
   const region = regionHit ? regionHit.region : null;
 
-  /* 테마 (복수 가능) */
+  // 3) Match themes (multiple allowed) / 3) 테마 매칭 (복수 허용)
   const themes = THEME_KEYWORDS.filter((t) => hasAny(lower, t.keys)).map((t) => t.theme);
 
-  /* 날씨/동행/일정/식사 */
+  // 4) Match weather, companion, schedule, meal / 4) 날씨·동행·일정·식사 매칭
   const rain = hasAny(lower, RAIN_KEYWORDS);
   const mobility = Object.entries(MOBILITY_KEYWORDS)
     .filter(([, keys]) => hasAny(lower, keys))
@@ -72,21 +86,23 @@ export function parseIntent(rawText) {
   const oneday = hasAny(lower, ["하루", "당일", "종일"]);
   const wantsFood = hasAny(lower, FOOD_KEYWORDS);
 
-  /* 후속 요청 신호 */
+  // 5) Detect follow-up signals / 5) 후속 요청 신호 감지
   const restaurantsOnly = hasAny(lower, ["식당만", "맛집만", "먹을 곳만", "점심만", "저녁만", "카페만"]);
   const nextRegion = hasAny(lower, ["다른 지역", "지역 바꿔", "지역 바꾸"]);
   const anotherCourse = hasAny(lower, ["다른 코스", "다시 추천", "다시 보여", "코스 바꿔", "다르게", "다른 장소", "다른 곳"]);
   const greeting = hasAny(lower, GREETING_KEYWORDS) && !region && themes.length === 0 && !restaurantsOnly && !anotherCourse;
   const outing = hasAny(lower, ["나들이", "가볼 만한", "찾아", "코스", "여행", "산책", "추천", "다려", "어디 가", "가고 싶", "가기 좋은"]);
 
-  /* 여행지 목록 요청 신호: 숫자 + 장소 명사 ("여행지 3개 추천", "장소 2곳 알려줘")
-     → 코스 조립이 아니라 관광지 N곳 목록으로 응답 */
+  // 6) Detect spots list request: number + place noun (e.g., "여행지 3개 추천") / 6) 여행지 목록 요청 감지 (예: "여행지 3개 추천")
+  //    Returns list of N tourist spots instead of a course / 코스 대신 관광지 N곳 목록 반환
   const countM = text.match(/(\d+)\s*(개|곳|군데)/);
   const spotsList = !!(countM && /(여행지|관광지|장소|곳|군데)/.test(text));
   const wantN = countM ? parseInt(countM[1], 10) : 0;
 
+  // 7) Determine indoor-only mode (rain or indoor theme) / 7) 실내 전용 모드 판단 (비 오거나 실내 테마)
   const indoorOnly = rain || themes.includes("indoor");
 
+  // 8) Build intent object / 8) 의도 객체 구성
   const intent = {
     text,
     region, themes, rain, mobility,
@@ -96,6 +112,7 @@ export function parseIntent(rawText) {
     spotsList, wantN,
   };
 
+  // 9) Build display labels for intent badges / 9) 의도 배지용 라벨 생성
   intent.labels = buildLabels(intent);
   return intent;
 }
