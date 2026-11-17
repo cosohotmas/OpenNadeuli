@@ -1,0 +1,22 @@
+{
+  "name": "opennadeuli",
+  "version": "1.0.0",
+  "description": "휠체어·보행 약자를 위한 무장애 관광 AI 에이전트 (OpenNadeuli)",
+  "private": true,
+  "scripts": {
+    "dev": "node serve.mjs 8899",
+    "build": "node build-standalone.mjs",
+    "start": "node serve.mjs 8899"
+  },
+  "keywords": [
+    "accessibility",
+    "wheelchair",
+    "barrier-free",
+    "tourism",
+    "public-api",
+    "kakao-maps"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

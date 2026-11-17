@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>오픈나들이 · 휠체어·보행 약자를 위한 무장애 관광 AI 에이전트</title>
+  <meta name="description" content="공공 무장애 데이터 3종(열린관광지·무장애 탐방로·상권정보)을 조합해 헛걸음 없는 나들이 코스를 추천하는 AI 에이전트" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- 헤더 -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-logo" aria-hidden="true">🦽</div>
+        <div class="brand-text">
+          <h1>오픈나들이</h1>
+          <p>휠체어·보행 약자를 위한 무장애 관광 AI 에이전트</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <span id="dataSourceBadge" class="data-badge">내장 샘플 데이터</span>
+        <button id="settingsBtn" class="btn btn-ghost" type="button" aria-label="공공데이터 API 키 설정 열기">⚙️ API 설정</button>
+        <button id="resetBtn" class="btn btn-ghost" type="button" aria-label="대화 초기화">↺ 대화 초기화</button>
+      </div>
+    </header>
+
+    <!-- 대화 영역 -->
+    <main id="chat" class="chat" aria-live="polite" aria-label="오픈나들이 AI 에이전트 대화"></main>
+
+    <!-- 입력 영역 -->
+    <div class="composer">
+      <div id="quickChips" class="quick-chips" role="group" aria-label="상황별 원클릭 추천 질문"></div>
+
+      <!-- 일정·시간대 설정: 평소 한 줄 필, 클릭 시 아래로 아코디언 펼침 -->
+      <div class="timebar-inline">
+        <button id="timebarToggle" class="tb-pill" type="button" aria-expanded="false"
+                aria-controls="tbPanel" title="일정 및 시간대 상세 설정 펼치기/접기">
+          <span aria-hidden="true">⚙️</span><span>일정 및 시간대 상세 설정</span>
+          <span id="tbHeadSummary" class="tb-pill-value"></span>
+          <span class="tb-caret" aria-hidden="true">▾</span>
+        </button>
+
+        <!-- 상세 설정 패널 (아코디언: 버튼 아래로 펼쳐짐) -->
+        <div id="tbPanel" class="tb-panel" hidden>
+          <div class="tb-panel-head">
+            <div class="tb-tabs" role="tablist" aria-label="여행 형태 선택">
+              <button type="button" class="tb-tab" data-trip="day" role="tab">당일 코스</button>
+              <button type="button" class="tb-tab" data-trip="overnight" role="tab">1박 2일 코스</button>
+            </div>
+            <button id="timebarReset" class="btn btn-ghost btn-sm" type="button" title="기본값으로 되돌리기">↺ 초기화</button>
+          </div>
+
+          <!-- 1박 2일일 때만 표시: 날짜별 슬라이더 전환 + 숙소 옵션 -->
+          <div id="tbDayRow" class="tb-day-row" hidden>
+            <div class="tb-daytabs" role="tablist" aria-label="일차 선택">
+              <button type="button" class="tb-daytab" data-day="1" role="tab">1일차</button>
+              <button type="button" class="tb-daytab" data-day="2" role="tab">2일차</button>
+            </div>
+            <label class="tb-hotel">
+              <input type="checkbox" id="tbHotel" />
+              🏨 휠체어 이용 가능 숙소(호텔) 추천 포함
+            </label>
+          </div>
+
+          <!-- 듀얼 썸 타임라인 슬라이더 (00시~24시 전체 범위) -->
+          <div class="timebar-scroll" tabindex="0" aria-label="시간대 타임라인 (00시~24시, 가로 스크롤)">
+            <div class="timebar-inner">
+              <div class="tb-track" id="tbTrack">
+                <div class="tb-fill" id="tbFill"></div>
+                <button type="button" class="tb-thumb" id="tbThumbS" role="slider"
+                        aria-label="활동 시작 시간" aria-valuemin="0" aria-valuemax="24" tabindex="0"></button>
+                <button type="button" class="tb-thumb" id="tbThumbE" role="slider"
+                        aria-label="활동 종료 시간" aria-valuemin="0" aria-valuemax="24" tabindex="0"></button>
+              </div>
+              <div class="tb-ticks" id="tbTicks" aria-hidden="true"></div>
+            </div>
+          </div>
+
+          <!-- 고정 활동 대신 옵션만 선택 -->
+          <div id="tbChips" class="tb-chips" role="group" aria-label="일정 옵션"></div>
+          <p id="tbSummary" class="tb-summary" aria-live="polite"></p>
+        </div>
+      </div>
+
+      <form id="chatForm" class="composer-form" autocomplete="off">
+        <input id="chatInput" type="text" inputmode="text"
+               placeholder="예) 주말에 휠체어 타고 산책할 만한 부산 근교 나들이 장소 찾아줘"
+               aria-label="메시지 입력" />
+        <button id="sendBtn" type="submit" class="btn btn-primary btn-lg">전송 ✉️</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 설정 모달 -->
+  <div id="settingsModal" class="modal-backdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <div class="modal-head">
+        <h2 id="settingsTitle">⚙️ 공공데이터 API 키 설정</h2>
+        <button class="modal-close" type="button" data-close="settingsModal" aria-label="닫기">✕</button>
+      </div>
+      <p class="modal-desc">
+        인증키를 입력하면 <b>공공데이터포털(data.go.kr) 실시간 조회</b>를 시도하고, 실패하면 내장 샘플 데이터로
+        자동 전환되어 시연이 끊기지 않아요. 호출은 <b>브라우저 직접 호출(data.go.kr CORS 허용) 우선</b>이고
+        실패 시 serve.mjs 내장 프록시로 폴백합니다 — <b>터널·localhost 어디서든 테스트할 수 있어요</b>
+        (file:// 직접 열기에서는 내장 데이터 사용). 키 발급: 포털 가입 → 아래 서비스 "활용신청" → 마이페이지 인증키.
+        <b>키 없이도 모든 기능을 즉시 시연할 수 있어요.</b>
+      </p>
+      <label class="check-row">
+        <input type="checkbox" id="useLive" />
+        실시간 조회 시도 사용 (API 키 입력 시)
+      </label>
+      <div class="field">
+        <label for="keyTour">① 한국관광공사 국문관광정보(TourAPI) 키</label>
+        <input id="keyTour" type="password" placeholder="서비스명: 한국관광공사_국문관광정보 서비스(GW)" />
+      </div>
+      <div class="field">
+        <label for="keyTrail">② 국립공원·지자체 무장애 탐방로 (data.go.kr에 OpenAPI 미제공)</label>
+        <input id="keyTrail" type="password" placeholder="포털에 API가 아닌 파일데이터만 제공 — 탐방로는 내장 데이터로 검증됩니다" />
+      </div>
+      <div class="field">
+        <label for="keyBiz">③ 소상공인 상권정보-상가(상권)정보 키</label>
+        <input id="keyBiz" type="password" placeholder="서비스명: 상권정보-상가(상권)정보 조회 서비스" />
+      </div>
+      <div class="field">
+        <label for="keyMap">④ 카카오 지도 JavaScript 키 (동선 지도용 — 선택)</label>
+        <input id="keyMap" type="password" placeholder="developers.kakao.com → 앱 생성 → 앱 키의 JavaScript 키" />
+      </div>
+      <p class="modal-desc">※ 라이브 결과는 API가 무장애 상세를 제공하지 않을 수 있어, 카드에 "현장 확인 필요" 배지를 붙여 안전하게 표시합니다. 카카오 지도 키는 결과 하단 동선 지도에만 사용됩니다.</p>
+      <div id="testResult" class="test-result" hidden></div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="testKeysBtn" type="button">연결 테스트</button>
+        <button class="btn btn-ghost" id="clearKeysBtn" type="button">키 초기화</button>
+        <button class="btn btn-primary" id="saveKeysBtn" type="button">저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 초대장 모달 -->
+  <div id="inviteModal" class="modal-backdrop" hidden>
+    <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="inviteTitle">
+      <div class="modal-head">
+        <h2 id="inviteTitle">💌 나들이 초대장 (가족 단톡방 공유용)</h2>
+        <button class="modal-close" type="button" data-close="inviteModal" aria-label="닫기">✕</button>
+      </div>
+      <div id="invitePreview" class="invite-preview"></div>
+      <textarea id="inviteText" rows="12" spellcheck="false" aria-label="초대장 텍스트 편집"></textarea>
+      <p class="modal-desc">문구를 자유롭게 고친 뒤 복사하면 카카오톡·문자에 바로 붙여넣을 수 있어요.</p>
+      <div class="modal-actions">
+        <button class="btn btn-primary btn-lg" id="copyInviteBtn" type="button">📋 초대장 텍스트 복사</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+# 환경 변수 (실제 키 포함 — 절대 커밋 금지)
+.env
+
+# OS 생성 파일
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 로그
+*.log
+logs/
+
+# 빌드/산출물 (정적 사이트는 소스 기반으로 배포)
+dist/
+build/
+*.zip
+
+# 캐시
+__pycache__/
+*.pyc
+.cache/

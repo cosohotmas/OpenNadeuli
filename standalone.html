@@ -1,0 +1,4759 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>오픈나들이 · 휠체어·보행 약자를 위한 무장애 관광 AI 에이전트</title>
+  <meta name="description" content="공공 무장애 데이터 3종(열린관광지·무장애 탐방로·상권정보)을 조합해 헛걸음 없는 나들이 코스를 추천하는 AI 에이전트" />
+  <style>
+/* ============================================================
+   오픈나들이 — 가독성 중심 UI (고령층·보호자 배려 설계)
+   기본 글자 크기 18px 이상, 고대비, 큰 터치 영역
+   ============================================================ */
+
+:root {
+  --bg: #eef4f1;
+  --panel: #ffffff;
+  --ink: #22303a;
+  --muted: #5c6b74;
+  --line: #dde7e2;
+
+  --brand: #0f766e;
+  --brand-dark: #0a544e;
+  --brand-soft: #ddf1ec;
+  --brand-softer: #eef8f5;
+
+  --user-bubble: #0f766e;
+
+  --ok-green: #0b6e4f;
+  --ok-blue: #1d4fa1;
+  --ok-amber: #a46500;
+  --ok-purple: #6b3fa0;
+  --ok-slate: #44576b;
+
+  --radius: 18px;
+  --shadow: 0 2px 14px rgba(34, 64, 56, 0.10);
+}
+
+* { box-sizing: border-box; }
+
+/* hidden 속성은 작성자 CSS(display:grid 등)보다 항상 우선 — 모달·토스트 확실한 숨김 */
+[hidden] { display: none !important; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+  font-size: 18px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+/* ------------------------------ 헤더 ------------------------------ */
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 4px;
+  flex-wrap: wrap;
+}
+
+.brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+
+.brand-logo {
+  width: 54px; height: 54px;
+  display: grid; place-items: center;
+  font-size: 30px;
+  background: linear-gradient(135deg, var(--brand) 0%, #14a08f 100%);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+}
+
+.brand-text h1 {
+  margin: 0;
+  font-size: 23px;
+  letter-spacing: -0.3px;
+  color: var(--brand-dark);
+}
+.brand-text p { margin: 2px 0 0; font-size: 14.5px; color: var(--muted); }
+
+.header-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.data-badge {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--brand-dark);
+  background: var(--brand-soft);
+  border: 1px solid #bfe3da;
+  padding: 5px 12px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* ------------------------------ 버튼 ------------------------------ */
+
+.btn {
+  font: inherit;
+  font-weight: 700;
+  border: none;
+  border-radius: 12px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: transform 0.08s ease, filter 0.15s ease, background 0.15s ease;
+}
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: 0.55; cursor: default; }
+
+.btn-primary {
+  background: var(--brand);
+  color: #fff;
+  box-shadow: 0 3px 10px rgba(15, 118, 110, 0.35);
+}
+.btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
+
+.btn-ghost {
+  background: var(--panel);
+  color: var(--brand-dark);
+  border: 1.5px solid var(--line);
+}
+.btn-ghost:hover:not(:disabled) { background: var(--brand-softer); }
+
+.btn-lg { padding: 13px 22px; font-size: 18.5px; border-radius: 14px; }
+
+/* ------------------------------ 채팅 ------------------------------ */
+
+.chat {
+  overflow-y: auto;
+  padding: 8px 2px 20px;
+  scroll-behavior: smooth;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.msg { display: flex; gap: 12px; align-items: flex-start; }
+.msg.user { justify-content: flex-end; }
+.msg.user .bubble {
+  background: var(--user-bubble);
+  color: #fff;
+  border-radius: 20px 20px 6px 20px;
+  padding: 13px 18px;
+  max-width: min(78%, 640px);
+  font-size: 18.5px;
+  box-shadow: var(--shadow);
+}
+.msg.user p { margin: 0; white-space: pre-wrap; }
+
+.avatar {
+  width: 44px; height: 44px;
+  flex: 0 0 44px;
+  display: grid; place-items: center;
+  font-size: 24px;
+  background: var(--brand-soft);
+  border-radius: 50%;
+  margin-top: 4px;
+}
+
+.msg.agent .bubble {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px 20px 20px 20px;
+  padding: 16px 18px;
+  max-width: min(92%, 860px);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.intro { white-space: pre-wrap; font-size: 18.5px; }
+
+/* ------------------- 에이전트 추론 타임라인 ------------------- */
+
+.timeline { display: flex; flex-direction: column; gap: 0; }
+
+.step {
+  position: relative;
+  display: flex;
+  gap: 12px;
+  padding: 8px 0 8px 0;
+}
+
+.step .dot {
+  width: 30px; height: 30px;
+  flex: 0 0 30px;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 14px;
+  font-weight: 800;
+  background: var(--brand-softer);
+  border: 2px solid var(--brand-soft);
+  color: var(--brand-dark);
+  margin-top: 1px;
+}
+.step.done .dot { background: var(--brand); border-color: var(--brand); color: #fff; }
+
+.step-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+
+.step-title { font-weight: 700; font-size: 16.5px; }
+.step-icon { font-size: 17px; }
+
+.step-detail { font-size: 15.5px; color: var(--muted); }
+
+.step-note {
+  font-size: 14.5px;
+  color: #8a5b12;
+  background: #fdf5e3;
+  border-left: 3px solid #eec76a;
+  padding: 5px 10px;
+  border-radius: 0 8px 8px 0;
+}
+
+.spinner {
+  width: 15px; height: 15px;
+  border: 3px solid #bfe3da;
+  border-top-color: var(--brand);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* 의도 분석 배지 */
+.intent-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.intent-chip {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--brand-dark);
+  background: var(--brand-softer);
+  border: 1px solid #cfe8e0;
+  border-radius: 999px;
+  padding: 3px 11px;
+  white-space: nowrap;
+}
+
+/* 도구 호출 칩 (Function Calling 표시) */
+.tool-chip { font-size: 13.5px; }
+.tool-chip summary {
+  cursor: pointer;
+  list-style: none;
+  background: #f3f7f5;
+  border: 1px dashed #c9d8d1;
+  border-radius: 10px;
+  padding: 6px 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #3c4a53;
+}
+.tool-chip summary::-webkit-details-marker { display: none; }
+.tool-chip summary code {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 13px;
+}
+.tool-chip pre {
+  margin: 6px 0 0;
+  padding: 10px 12px;
+  background: #22303a;
+  color: #d9f2e9;
+  border-radius: 10px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  overflow-x: auto;
+}
+
+/* ------------------------------ 코스 카드 ------------------------------ */
+
+.course {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-left: 3px solid var(--brand-soft);
+  margin-left: 14px;
+  padding-left: 18px;
+}
+
+.card {
+  display: flex;
+  gap: 14px;
+  background: var(--panel);
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  box-shadow: var(--shadow);
+}
+
+.card-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 52px;
+}
+
+.card-order {
+  width: 44px; height: 44px;
+  display: grid; place-items: center;
+  background: var(--brand);
+  color: #fff;
+  border-radius: 50%;
+  font-size: 21px;
+  font-weight: 800;
+  box-shadow: 0 3px 8px rgba(15, 118, 110, 0.35);
+}
+
+.phase {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--brand-dark);
+  background: var(--brand-softer);
+  border-radius: 999px;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
+.card-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+
+.card-head { display: flex; gap: 12px; align-items: center; }
+
+.card-emoji {
+  width: 50px; height: 50px;
+  flex: 0 0 50px;
+  display: grid; place-items: center;
+  font-size: 28px;
+  background: var(--brand-softer);
+  border-radius: 14px;
+}
+
+.card-names h3 { margin: 0; font-size: 19.5px; letter-spacing: -0.2px; }
+.card-type { font-size: 14px; color: var(--muted); font-weight: 600; }
+
+.card-addr { font-size: 15.5px; color: var(--muted); }
+
+/* 안심 체크포인트 배지 */
+.badges { display: flex; flex-wrap: wrap; gap: 7px; }
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  font-weight: 800;
+  padding: 5px 12px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.b-rental     { background: #e7f5ed; color: var(--ok-green); }
+.b-toilet     { background: #e7eefc; color: var(--ok-blue); }
+.b-enterable  { background: #e7f5ed; color: var(--ok-green); }
+.b-elevator   { background: #e7eefc; color: var(--ok-blue); }
+.b-parking    { background: #e8ecf1; color: var(--ok-slate); }
+.b-slope8     { background: #fff3dd; color: var(--ok-amber); }
+.b-handrail   { background: #e8ecf1; color: var(--ok-slate); }
+.b-restArea   { background: #e8ecf1; color: var(--ok-slate); }
+.b-stepFree   { background: #f2e8fb; color: var(--ok-purple); }
+.b-lowTable   { background: #fdeee6; color: #a04c1c; }
+
+.card-details { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 14.5px; color: var(--muted); }
+.card-details b { color: #3c4a53; margin-right: 4px; }
+
+.card-tip {
+  font-size: 15.5px;
+  background: var(--brand-softer);
+  border-radius: 10px;
+  padding: 8px 12px;
+  color: #2c4a43;
+}
+
+.card-links a { font-size: 15px; font-weight: 700; color: var(--brand); text-decoration: none; }
+.card-links a:hover { text-decoration: underline; }
+
+/* 안심 요약 */
+.summary {
+  background: var(--brand-softer);
+  border: 1.5px solid #cfe8e0;
+  border-radius: 14px;
+  padding: 12px 16px;
+}
+.summary strong { color: var(--brand-dark); font-size: 17px; }
+.summary ul { margin: 8px 0 2px; padding-left: 20px; }
+.summary li { font-size: 15.5px; margin: 3px 0; }
+
+/* 초대장 버튼 */
+.invite-row { display: flex; }
+
+/* ------------------------------ 칩 ------------------------------ */
+
+.chips { display: none; flex-direction: column; gap: 8px; }
+.chips.visible { display: flex; }
+
+.chips-label { font-size: 14.5px; color: var(--muted); font-weight: 600; }
+
+.chip {
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  text-align: left;
+  color: var(--brand-dark);
+  background: var(--panel);
+  border: 1.5px solid #cfe8e0;
+  border-radius: 999px;
+  padding: 9px 18px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  white-space: nowrap;
+}
+.chip:hover:not(:disabled) { background: var(--brand-softer); }
+.chip:disabled { opacity: 0.55; cursor: default; }
+
+/* ------------------------------ 입력 영역 ------------------------------ */
+
+.composer {
+  position: sticky;
+  bottom: 0;
+  background: linear-gradient(to top, var(--bg) 78%, rgba(238, 244, 241, 0));
+  padding: 10px 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.quick-chips { display: flex; flex-direction: column; gap: 6px; }
+.quick-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  scrollbar-width: thin;
+}
+.quick-row .chip { flex: 0 0 auto; }
+
+.composer-form { display: flex; gap: 10px; }
+
+.composer-form input {
+  flex: 1;
+  font: inherit;
+  font-size: 18px;
+  padding: 14px 18px;
+  border: 2px solid #cfe0d9;
+  border-radius: 14px;
+  outline: none;
+  background: var(--panel);
+  color: var(--ink);
+  min-width: 0;
+}
+.composer-form input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.15); }
+.composer-form input:disabled { background: #f3f6f4; }
+
+/* ------------------------------ 모달 ------------------------------ */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 34, 30, 0.45);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  z-index: 50;
+}
+
+.modal {
+  background: var(--panel);
+  border-radius: 20px;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.25);
+  width: min(560px, 100%);
+  max-height: 90dvh;
+  overflow-y: auto;
+  padding: 22px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.modal-wide { width: min(680px, 100%); }
+
+.modal-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.modal-head h2 { margin: 0; font-size: 21px; color: var(--brand-dark); }
+
+.modal-close {
+  font-size: 18px;
+  border: none;
+  background: var(--brand-softer);
+  color: var(--brand-dark);
+  width: 38px; height: 38px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.modal-desc { margin: 0; font-size: 15px; color: var(--muted); }
+.modal-desc b { color: #3c4a53; }
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16.5px;
+  font-weight: 700;
+  color: #3c4a53;
+}
+.check-row input { width: 20px; height: 20px; accent-color: var(--brand); }
+
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { font-size: 15px; font-weight: 700; color: #3c4a53; }
+.field input {
+  font: inherit;
+  font-size: 15.5px;
+  padding: 11px 14px;
+  border: 2px solid #cfe0d9;
+  border-radius: 12px;
+  outline: none;
+}
+.field input:focus { border-color: var(--brand); }
+
+.test-result {
+  font-size: 14.5px;
+  background: var(--brand-softer);
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: #2c4a43;
+}
+
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+
+/* 초대장 미리보기 */
+.invite-preview { display: flex; }
+.invite-card {
+  flex: 1;
+  border: 1.5px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.invite-card-head {
+  background: linear-gradient(135deg, var(--brand) 0%, #14a08f 100%);
+  color: #fff;
+  font-weight: 800;
+  font-size: 16.5px;
+  padding: 11px 16px;
+}
+.invite-card-body {
+  white-space: pre-wrap;
+  padding: 14px 16px;
+  font-size: 15.5px;
+  line-height: 1.65;
+}
+
+.invite-preview + textarea,
+.modal textarea {
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.6;
+  border: 2px solid #cfe0d9;
+  border-radius: 12px;
+  padding: 12px 14px;
+  outline: none;
+  resize: vertical;
+  min-height: 220px;
+}
+.modal textarea:focus { border-color: var(--brand); }
+
+/* ------------------------------ 토스트 ------------------------------ */
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 26px;
+  transform: translateX(-50%);
+  background: #22303a;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  padding: 12px 22px;
+  border-radius: 999px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
+  z-index: 60;
+}
+
+/* ------------------------------ 반응형 ------------------------------ */
+
+@media (max-width: 720px) {
+  body { font-size: 17px; }
+  .app { padding: 0 10px; }
+  .brand-text h1 { font-size: 20px; }
+  .brand-logo { width: 46px; height: 46px; font-size: 26px; }
+  .msg.agent .bubble { max-width: 100%; padding: 14px; }
+  .msg.user .bubble { max-width: 88%; }
+  .course { margin-left: 8px; padding-left: 10px; }
+  .card { flex-direction: column; gap: 8px; }
+  .card-rail { flex-direction: row; justify-content: flex-start; }
+  .card-order { width: 38px; height: 38px; font-size: 18px; }
+  .phase { order: -1; margin-left: 4px; }
+  .btn-lg { font-size: 17px; }
+  .modal { padding: 18px; }
+}
+
+/* 스크롤바 */
+.chat::-webkit-scrollbar { width: 10px; }
+.chat::-webkit-scrollbar-thumb { background: #cfe0d9; border-radius: 8px; }
+.quick-row::-webkit-scrollbar { height: 6px; }
+.quick-row::-webkit-scrollbar-thumb { background: #cfe0d9; border-radius: 6px; }
+.tb-chips::-webkit-scrollbar { height: 6px; }
+.tb-chips::-webkit-scrollbar-thumb { background: #cfe0d9; border-radius: 6px; }
+
+/* ------------------- 시간대 인라인 바 + 상세 팝오버 ------------------- */
+
+/* 한 줄 슬림 필: 컴포저 안 입력창 바로 위, 칩 하나 크기의 인라인 바 */
+.timebar-inline {
+  position: relative;   /* 하위 패널 기준점 */
+  margin: 2px 0;
+}
+
+.tb-pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 7px 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--brand-dark);
+  font: inherit; font-size: 15px; font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 1px 6px rgba(34, 64, 56, 0.08);
+}
+.tb-pill:hover { background: var(--brand-softer); border-color: var(--brand); }
+.tb-pill:focus-visible { outline: 3px solid #9adbd0; outline-offset: 2px; }
+.tb-pill-value { font-weight: 700; color: var(--ink); }
+.tb-pill.open { border-color: var(--brand); background: var(--brand-soft); }
+.tb-caret { font-size: 12px; color: var(--muted); transition: transform 0.15s ease; }
+.tb-pill.open .tb-caret { transform: rotate(180deg); }
+
+/* 상세 패널: 필 버튼 아래로 펼쳐지는 아코디언 */
+.tb-panel {
+  width: 100%;
+  margin-top: 8px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 10px 14px;
+  box-shadow: var(--shadow);
+}
+
+.tb-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+
+/* 여행 형태 탭: 당일 / 1박 2일 */
+.tb-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.tb-tab {
+  padding: 7px 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit; font-size: 15px; font-weight: 500;
+  cursor: pointer;
+}
+.tb-tab:hover { background: var(--brand-softer); }
+.tb-tab.active {
+  background: var(--brand-soft);
+  border-color: var(--brand);
+  color: var(--brand-dark);
+  font-weight: 700;
+}
+.tb-tab:focus-visible { outline: 3px solid #9adbd0; outline-offset: 2px; }
+
+/* 1박 2일: 일차 탭 + 숙소 체크박스 */
+.tb-day-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; flex-wrap: wrap;
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: var(--brand-softer);
+  border-radius: 12px;
+}
+.tb-daytabs { display: flex; gap: 6px; }
+.tb-daytab {
+  padding: 5px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  font: inherit; font-size: 14px;
+  cursor: pointer;
+}
+.tb-daytab.active {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+  font-weight: 700;
+}
+.tb-hotel { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 500; cursor: pointer; }
+.tb-hotel input { width: 19px; height: 19px; accent-color: var(--brand); }
+
+.btn-sm { font-size: 14px; padding: 6px 12px; }
+
+/* 가로 스크롤: 손가락 스와이프로 좌우 이동 (넓은 화면에서는 전체 표시) */
+.timebar-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 6px -4px 0;
+  padding: 0 4px 2px;
+}
+.timebar-inner { min-width: 560px; }
+
+/* 트랙: 구역 배경 + 채움 + 듀얼 썸. touch-action:none으로 터치 드래그 전용 */
+.tb-track {
+  position: relative; height: 42px; margin-top: 4px; border-radius: 12px;
+  background: linear-gradient(90deg,
+    #e3f2e9 0 33.333%, #fdeed2 33.333% 50%, #e2edfa 50% 83.333%, #f3e6f5 83.333% 100%);
+  touch-action: none;
+  cursor: pointer;
+}
+.tb-fill {
+  position: absolute; top: 8px; bottom: 8px;
+  background: rgba(15, 118, 110, 0.30);
+  border-radius: 10px;
+  pointer-events: none;
+}
+.tb-thumb {
+  position: absolute; top: 50%; transform: translate(-50%, -50%);
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--brand); border: 3px solid #fff;
+  box-shadow: 0 2px 8px rgba(10, 84, 78, 0.45);
+  cursor: grab; touch-action: none; padding: 0;
+}
+.tb-thumb:active { cursor: grabbing; }
+.tb-thumb:focus-visible { outline: 3px solid #9adbd0; outline-offset: 2px; }
+
+.tb-ticks { position: relative; height: 20px; margin-top: 2px; }
+.tb-tick {
+  position: absolute; transform: translateX(-50%);
+  font-size: 12px; color: var(--muted);
+}
+.tb-tick:first-child { transform: none; }          /* 양끝 잘림 방지 */
+.tb-tick:last-child { transform: translateX(-100%); }
+
+/* 타임블록 칩: 가로 스크롤(스와이프) */
+.tb-chips {
+  display: flex; gap: 8px;
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+  padding: 6px 2px 2px;
+}
+.tb-chip { flex: 0 0 auto; }
+.tb-chip.active {
+  background: var(--brand-soft);
+  border-color: var(--brand);
+  color: var(--brand-dark);
+  font-weight: 700;
+}
+
+/* 실시간 피드백 문구 */
+.tb-summary { margin: 2px 0 0; font-size: 16px; color: var(--ink); min-height: 26px; }
+.tb-summary::before { content: "→ "; color: var(--brand); font-weight: 700; }
+
+@media (max-width: 720px) {
+  .tb-panel { padding: 8px 10px; }
+  .tb-summary { font-size: 15px; }
+}
+
+/* ---------- 전체 동선 요약 + 인라인 지도 ---------- */
+.route-section {
+  margin-top: 14px;
+  padding: 14px 16px 16px;
+  background: var(--brand-softer);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+.route-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.route-head h2 { margin: 0; font-size: 16px; color: var(--ink); }
+.route-map-wrap { position: relative; margin-bottom: 12px; }
+.route-map { height: 300px; border-radius: 12px; background: #e6efe9; z-index: 0; }
+.route-map-hint {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  z-index: 800;
+  background: rgba(255, 255, 255, 0.94);
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  color: var(--muted);
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.18);
+  pointer-events: auto;
+  max-width: calc(100% - 20px);
+}
+.route-map-wrap.route-map-off .route-map { display: none; }
+.route-map-wrap.route-map-off .route-map-hint { position: static; margin: 8px 2px; }
+
+/* 행별 카카오맵 바로가기 */
+.route-maplink {
+  grid-column: 3;
+  justify-self: end;
+  align-self: center;
+  border: 1px solid var(--brand);
+  background: var(--panel);
+  color: var(--brand-dark);
+  border-radius: 8px;
+  font-size: 11px;
+  padding: 4px 9px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.route-maplink:hover { background: var(--brand-soft); }
+
+/* 번호 핀 (카카오맵 커스텀 오버레이) */
+.route-pin {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50% 50% 50% 4px;
+  transform: rotate(-45deg);
+  background: var(--brand);
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+}
+.route-pin > span { transform: rotate(45deg); color: #fff; font-size: 12px; font-weight: 700; }
+.route-pin.kakao:hover { background: var(--brand-dark); }
+
+/* 말풍선 (카카오맵 인포윈도우) */
+.route-popup b { display: block; font-size: 13px; margin: 2px 0 3px; color: var(--ink); }
+.route-popup .popup-addr { display: block; color: var(--muted); font-size: 11px; margin-bottom: 5px; }
+.route-popup .popup-badges i {
+  display: inline-block;
+  font-style: normal;
+  font-size: 10.5px;
+  background: var(--brand-soft);
+  color: var(--brand-dark);
+  border-radius: 6px;
+  padding: 1px 7px;
+  margin: 1px 3px 1px 0;
+}
+
+/* 요약 리스트 */
+.route-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.route-row {
+  display: grid;
+  grid-template-columns: 24px 92px 1fr;
+  gap: 3px 10px;
+  align-items: center;
+  padding: 8px 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.route-row:hover, .route-row.active { border-color: var(--brand); background: #ffffff; }
+.route-row.unmapped { opacity: 0.75; }
+.route-no {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--brand);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 12px;
+}
+.route-phase { font-size: 11.5px; color: var(--brand); font-weight: 600; }
+.route-name { font-weight: 600; font-size: 13.5px; color: var(--ink); }
+.route-addr { grid-column: 2 / -1; font-size: 11.5px; color: var(--muted); }
+.route-barrier { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: 4px; }
+.route-barrier i {
+  font-style: normal;
+  font-size: 10.5px;
+  background: var(--brand-soft);
+  color: var(--brand-dark);
+  border-radius: 6px;
+  padding: 1px 7px;
+}
+@media (max-width: 720px) {
+  .route-map { height: 240px; }
+  .route-row { grid-template-columns: 24px 1fr; }
+  .route-phase { grid-column: 2; }
+  .route-name { grid-column: 2; }
+}
+
+</style>
+</head>
+<body>
+  <div class="app">
+    <!-- 헤더 -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-logo" aria-hidden="true">🦽</div>
+        <div class="brand-text">
+          <h1>오픈나들이</h1>
+          <p>휠체어·보행 약자를 위한 무장애 관광 AI 에이전트</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <span id="dataSourceBadge" class="data-badge">내장 샘플 데이터</span>
+        <button id="settingsBtn" class="btn btn-ghost" type="button" aria-label="공공데이터 API 키 설정 열기">⚙️ API 설정</button>
+        <button id="resetBtn" class="btn btn-ghost" type="button" aria-label="대화 초기화">↺ 대화 초기화</button>
+      </div>
+    </header>
+
+    <!-- 대화 영역 -->
+    <main id="chat" class="chat" aria-live="polite" aria-label="오픈나들이 AI 에이전트 대화"></main>
+
+    <!-- 입력 영역 -->
+    <div class="composer">
+      <div id="quickChips" class="quick-chips" role="group" aria-label="상황별 원클릭 추천 질문"></div>
+
+      <!-- 일정·시간대 설정: 평소 한 줄 필, 클릭 시 아래로 아코디언 펼침 -->
+      <div class="timebar-inline">
+        <button id="timebarToggle" class="tb-pill" type="button" aria-expanded="false"
+                aria-controls="tbPanel" title="일정 및 시간대 상세 설정 펼치기/접기">
+          <span aria-hidden="true">⚙️</span><span>일정 및 시간대 상세 설정</span>
+          <span id="tbHeadSummary" class="tb-pill-value"></span>
+          <span class="tb-caret" aria-hidden="true">▾</span>
+        </button>
+
+        <!-- 상세 설정 패널 (아코디언: 버튼 아래로 펼쳐짐) -->
+        <div id="tbPanel" class="tb-panel" hidden>
+          <div class="tb-panel-head">
+            <div class="tb-tabs" role="tablist" aria-label="여행 형태 선택">
+              <button type="button" class="tb-tab" data-trip="day" role="tab">당일 코스</button>
+              <button type="button" class="tb-tab" data-trip="overnight" role="tab">1박 2일 코스</button>
+            </div>
+            <button id="timebarReset" class="btn btn-ghost btn-sm" type="button" title="기본값으로 되돌리기">↺ 초기화</button>
+          </div>
+
+          <!-- 1박 2일일 때만 표시: 날짜별 슬라이더 전환 + 숙소 옵션 -->
+          <div id="tbDayRow" class="tb-day-row" hidden>
+            <div class="tb-daytabs" role="tablist" aria-label="일차 선택">
+              <button type="button" class="tb-daytab" data-day="1" role="tab">1일차</button>
+              <button type="button" class="tb-daytab" data-day="2" role="tab">2일차</button>
+            </div>
+            <label class="tb-hotel">
+              <input type="checkbox" id="tbHotel" />
+              🏨 휠체어 이용 가능 숙소(호텔) 추천 포함
+            </label>
+          </div>
+
+          <!-- 듀얼 썸 타임라인 슬라이더 (00시~24시 전체 범위) -->
+          <div class="timebar-scroll" tabindex="0" aria-label="시간대 타임라인 (00시~24시, 가로 스크롤)">
+            <div class="timebar-inner">
+              <div class="tb-track" id="tbTrack">
+                <div class="tb-fill" id="tbFill"></div>
+                <button type="button" class="tb-thumb" id="tbThumbS" role="slider"
+                        aria-label="활동 시작 시간" aria-valuemin="0" aria-valuemax="24" tabindex="0"></button>
+                <button type="button" class="tb-thumb" id="tbThumbE" role="slider"
+                        aria-label="활동 종료 시간" aria-valuemin="0" aria-valuemax="24" tabindex="0"></button>
+              </div>
+              <div class="tb-ticks" id="tbTicks" aria-hidden="true"></div>
+            </div>
+          </div>
+
+          <!-- 고정 활동 대신 옵션만 선택 -->
+          <div id="tbChips" class="tb-chips" role="group" aria-label="일정 옵션"></div>
+          <p id="tbSummary" class="tb-summary" aria-live="polite"></p>
+        </div>
+      </div>
+
+      <form id="chatForm" class="composer-form" autocomplete="off">
+        <input id="chatInput" type="text" inputmode="text"
+               placeholder="예) 주말에 휠체어 타고 산책할 만한 부산 근교 나들이 장소 찾아줘"
+               aria-label="메시지 입력" />
+        <button id="sendBtn" type="submit" class="btn btn-primary btn-lg">전송 ✉️</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 설정 모달 -->
+  <div id="settingsModal" class="modal-backdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <div class="modal-head">
+        <h2 id="settingsTitle">⚙️ 공공데이터 API 키 설정</h2>
+        <button class="modal-close" type="button" data-close="settingsModal" aria-label="닫기">✕</button>
+      </div>
+      <p class="modal-desc">
+        인증키를 입력하면 <b>공공데이터포털(data.go.kr) 실시간 조회</b>를 시도하고, 실패하면 내장 샘플 데이터로
+        자동 전환되어 시연이 끊기지 않아요. 호출은 <b>브라우저 직접 호출(data.go.kr CORS 허용) 우선</b>이고
+        실패 시 serve.mjs 내장 프록시로 폴백합니다 — <b>터널·localhost 어디서든 테스트할 수 있어요</b>
+        (file:// 직접 열기에서는 내장 데이터 사용). 키 발급: 포털 가입 → 아래 서비스 "활용신청" → 마이페이지 인증키.
+        <b>키 없이도 모든 기능을 즉시 시연할 수 있어요.</b>
+      </p>
+      <label class="check-row">
+        <input type="checkbox" id="useLive" />
+        실시간 조회 시도 사용 (API 키 입력 시)
+      </label>
+      <div class="field">
+        <label for="keyTour">① 한국관광공사 국문관광정보(TourAPI) 키</label>
+        <input id="keyTour" type="password" placeholder="서비스명: 한국관광공사_국문관광정보 서비스(GW)" />
+      </div>
+      <div class="field">
+        <label for="keyTrail">② 국립공원·지자체 무장애 탐방로 (data.go.kr에 OpenAPI 미제공)</label>
+        <input id="keyTrail" type="password" placeholder="포털에 API가 아닌 파일데이터만 제공 — 탐방로는 내장 데이터로 검증됩니다" />
+      </div>
+      <div class="field">
+        <label for="keyBiz">③ 소상공인 상권정보-상가(상권)정보 키</label>
+        <input id="keyBiz" type="password" placeholder="서비스명: 상권정보-상가(상권)정보 조회 서비스" />
+      </div>
+      <div class="field">
+        <label for="keyMap">④ 카카오 지도 JavaScript 키 (동선 지도용 — 선택)</label>
+        <input id="keyMap" type="password" placeholder="developers.kakao.com → 앱 생성 → 앱 키의 JavaScript 키" />
+      </div>
+      <p class="modal-desc">※ 라이브 결과는 API가 무장애 상세를 제공하지 않을 수 있어, 카드에 "현장 확인 필요" 배지를 붙여 안전하게 표시합니다. 카카오 지도 키는 결과 하단 동선 지도에만 사용됩니다.</p>
+      <div id="testResult" class="test-result" hidden></div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="testKeysBtn" type="button">연결 테스트</button>
+        <button class="btn btn-ghost" id="clearKeysBtn" type="button">키 초기화</button>
+        <button class="btn btn-primary" id="saveKeysBtn" type="button">저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 초대장 모달 -->
+  <div id="inviteModal" class="modal-backdrop" hidden>
+    <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="inviteTitle">
+      <div class="modal-head">
+        <h2 id="inviteTitle">💌 나들이 초대장 (가족 단톡방 공유용)</h2>
+        <button class="modal-close" type="button" data-close="inviteModal" aria-label="닫기">✕</button>
+      </div>
+      <div id="invitePreview" class="invite-preview"></div>
+      <textarea id="inviteText" rows="12" spellcheck="false" aria-label="초대장 텍스트 편집"></textarea>
+      <p class="modal-desc">문구를 자유롭게 고친 뒤 복사하면 카카오톡·문자에 바로 붙여넣을 수 있어요.</p>
+      <div class="modal-actions">
+        <button class="btn btn-primary btn-lg" id="copyInviteBtn" type="button">📋 초대장 텍스트 복사</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <script>
+/* 단일 파일 빌드: ES 모듈 번들을 합친 스크립트 (2026-11-17T08:12:00.684Z) */
+/* ====== js/data.js ====== */
+/**
+ * 내장 샘플 데이터 (시연용)
+ * ------------------------------------------------------------------
+ * 실제 공공데이터 응답 스펙과 동일한 항목 구조로 설계했습니다.
+ *
+ *  - TOURIST_SPOTS  : 한국관광공사_열린관광지 정보조회서비스 스타일
+ *                     (contentid, areacode, wheelchairrental, disabledtoilet ...)
+ *  - TRAILS         : 국립공원공단·지자체 무장애 탐방로(데크길) 스타일
+ *                     (maxSlope=최대 경사도(%), distance, startPoint ...)
+ *  - RESTAURANTS    : 소상공인시장진흥공단 상권정보-상가(상권)정보 스타일
+ *                     (bizesId, bizesNm, indsSclsNm, xswftm/yswftm ...)
+ *
+ * ※ 장소명·주소·시설 정보는 시연을 위한 가상 데이터입니다. (README 참고)
+ */
+
+const REGIONS = ["부산", "서울", "제주", "강원", "인천", "경남", "경북"];
+
+/** 안심 체크포인트 배지 정의 */
+const BADGE_DEFS = {
+  rental:          { emoji: "🦽", label: "휠체어 대여" },
+  toilet:          { emoji: "🚻", label: "장애인 화장실" },
+  enterable:       { emoji: "♿", label: "휠체어 진입" },
+  elevator:        { emoji: "🛗", label: "엘리베이터" },
+  parking:         { emoji: "🅿️", label: "전용 주차장" },
+  slope8:          { emoji: "⛰️", label: "경사도 8% 이하" },
+  handrail:        { emoji: "🛡️", label: "안전 난간" },
+  restArea:        { emoji: "🪑", label: "휴식 공간" },
+  stepFree:        { emoji: "🚪", label: "출입구 턱 없음" },
+  lowTable:        { emoji: "🍽️", label: "저상 테이블" },
+  unverified:      { emoji: "⚠️", label: "무장애 정보 현장 확인 필요" },
+};
+
+/* ============================ 관광지 ============================ */
+const TOURIST_SPOTS = [
+  /* -------------------------- 부산 -------------------------- */
+  {
+    contentid: "OT6260001",
+    title: "해운대해수욕장 무장애구역",
+    addr1: "부산광역시 해운대구 우동",
+    areacode: "6", sigungucode: "12",
+    cat3name: "해수욕장/해변", kind: "outdoor",
+    themes: ["sea"], subArea: "해운대", emoji: "🏖️",
+    barrier: { rental: "Y", toilet: "Y", enterable: "Y", parking: "Y" },
+    rentalInfo: "해변 전용 휠체어 무료 대여 10:00~17:00",
+    usageHour: "09:00~19:00",
+    tip: "해변 전용 휠체어로 물가 목데크까지 그대로 진입해요. 대여는 오전에 먼저 받는 게 좋아요.",
+  },
+  {
+    contentid: "OT6260002",
+    title: "동백섬 공원",
+    addr1: "부산광역시 해운대구 중동",
+    areacode: "6", sigungucode: "12",
+    cat3name: "공원", kind: "outdoor",
+    themes: ["sea", "park"], subArea: "동백섬", emoji: "🌊",
+    barrier: { rental: "N", toilet: "Y", enterable: "Y", parking: "Y" },
+    usageHour: "연중무휴",
+    tip: "섬 전체가 평평한 회로 산책로라 방향만 정하면 길을 잃지 않아요. 등대 앞 벤치에서 쉬기 좋아요.",
+  },
+  {
+    contentid: "OT6260003",
+    title: "해운대블루라인파크 해변열차",
+    addr1: "부산광역시 해운대구 송정동",
+    areacode: "6", sigungucode: "12",
+    cat3name: "레저/열차", kind: "outdoor",
+    themes: ["sea"], subArea: "송정", emoji: "🚂",
+    barrier: { rental: "N", toilet: "Y", enterable: "Y", parking: "Y" },
+    usageHour: "09:30~19:00 (막차 18:30)",
+    tip: "휠체어 전용 탑승구는 해변열차 첫 차량, 출발 20분 전 안내소에서 도움을 받으세요.",
+  },
+  {
+    contentid: "OT6260004",
+    title: "씨라이프 부산 아쿠아리움",
+    addr1: "부산광역시 해운대구 해운대해변로 266",
+    areacode: "6", sigungucode: "12",
+    cat3name: "수족관", kind: "indoor",
+    themes: ["sea", "indoor"], subArea: "해운대", emoji: "🐠",
+    barrier: { rental: "Y", toilet: "Y", enterable: "Y", elevator: "Y", parking: "Y" },
+    usageHour: "10:00~18:00 (입장 마감 17:00)",
+    tip: "어두운 수중 터널도 그대로 이동 가능해요. 눈이 밝은 곳에 적응할 때 잠시 머무는 코스를 추천해요.",
+  },
+  {
+    contentid: "OT6260005",
+    title: "기장 오랑해변",
+    addr1: "부산광역시 기장군 기장읍 오랑리",
+    areacode: "6", sigungucode: "21",
+    cat3name: "해수욕장/해변", kind: "outdoor",
+    themes: ["sea"], subArea: "기장", emoji: "🌅",
+    barrier: { rental: "N", toilet: "Y", enterable: "Y", parking: "Y" },
+    usageHour: "연중무휴",
+    tip: "데크 입구까지 승하차 공간이 있어 어르신 이동 거리가 짧아요. 오후에 파도 소리가 좋아요.",
+  },
+  {
+    contentid: "OT6260006",
+    title: "부산시립미술관",
+    addr1: "부산광역시 해운대구 APEC로 58",
+    areacode: "6", sigungucode: "12",
+    cat3name: "미술관", kind: "indoor",
+    themes: ["culture", "indoor"], subArea: "해운대", emoji: "🖼️",
+    barrier: { rental: "Y", toilet: "Y", enterable: "Y", elevator: "Y", parking: "Y" },
+    usageHour: "10:00~18:00 (월요일 휴관)",
+    tip: "1·2층 무장애 동선 리플렛을 리셉션에서 받으세요. 카페 테이블도 저상형이 있어요.",
+  },
+
+  /* -------------------------- 서울 -------------------------- */
+  {
+    contentid: "OT1100001",
+    title: "여의한강공원 무장애구역",
+    addr1: "서울특별시 영등포구 여의동로 330",
+    areacode: "1", sigungucode: "15",
+    cat3name: "공원", kind: "outdoor",
+    themes: ["park", "sea"], subArea: "여의도", emoji: "🌳",
+    barrier: { rental: "Y", toilet: "Y", enterable: "Y", parking: "Y" },
+    rentalInfo: "공원 안내소 휠체어 무료 대여 09:00~18:00",
+    usageHour: "24시간 (안내소 09:00~18:00)",
+    tip: "한강 전망 광장까지 완만한 경사로가 이어져요. 주말엔 대여 휠체어가 오전에 먼저 소진돼요.",
+  },
+  {
+    contentid: "OT1100002",
+    title: "서울식물원·마곡나루",
+    addr1: "서울특별시 강서구 마곡동로 161",
+    areacode: "1", sigungucode: "5",
+    cat3name: "식물원", kind: "mixed",
+    themes: ["park"], subArea: "마곡", emoji: "🌿",
+    barrier: { rental: "Y", toilet: "Y", enterable: "Y", elevator: "Y", parking: "Y" },
+    usageHour: "야외 05:00~22:00 / 주 전시관 09:30~18:00",
+    tip: "비 오는 날엔 주 전시관(실내) 중심으로 둘러보세요. 전시관 바닥 전 구간이 평평해요.",
+  },
+  {
+    contentid: "OT1100003",
+    title: "국립현대미술관 서울관",
+    addr1: "서울특별시 종로구 삼청로 30",
+    areacode: "1", sigungucode: "23",
+    cat3name: "미술관", kind: "indoor",
+    themes: ["culture", "indoor"], subArea: "광화문", emoji: "🖼️",
+    barrier: { rental: "Y", toilet: "Y", enterable: "Y", elevator: "Y", parking: "Y" },
+    usageHour: "10:00~18:00 (1·3월 월요일 휴관)",
+    tip: "무빙워크로 언덕 없이 입구까지 연결돼요. 전시 3개 중 1곳은 실내 평지 동선으로 이어져요.",
+  },
+  {
+    contentid: "OT1100004",
+    title: "서울숲",
+    addr1: "서울특별시 성동구 뚝섬로 273",
+    areacode: "1", sigungucode: "23",
+    cat3name: "공원", kind: "outdoor",
+    themes: ["park"], subArea: "서울숲", emoji: "🌲",
+    barrier: { rental: "Y", toilet: "Y", enterable: "Y", parking: "Y" },
+    usageHour: "05:30~22:00",
+    tip: "문화예술공원 쪽이 가장 평평해요. 이벤트가 있는 주말엔 산책로가 붐비니 오전을 권해요.",
+  },
+  {
+    contentid: "OT1100005",
+    title: "경복궁",
+    addr1: "서울특별시 종로구 사직로 161",
+    areacode: "1", sigungucode: "23",
+    cat3name: "고궁/역사", kind: "outdoor",
+    themes: ["culture", "park"], subArea: "광화문", emoji: "🏯",
+    barrier: { rental: "Y", toilet: "Y", enterable: "Y", parking: "N" },
+    usageHour: "09:00~18:00 (화요일 휴궁)",
+    tip: "계단 대신 후문 평평한 길로 들어가면 이동이 편해요. 휠체어 대여는 흥례문 안내소에서.",
+  },
+
+  /* -------------------------- 제주 -------------------------- */
+  {
+    contentid: "OT5000001",
+    title: "협재해수욕장",
+    addr1: "제주특별자치도 제주시 애월읍 협재리",
+    areacode: "5", sigungucode: "1",
+    cat3name: "해수욕장/해변", kind: "outdoor",
+    themes: ["sea"], subArea: "애월/협재", emoji: "🏖️",
+    barrier: { rental: "Y", toilet: "Y", enterable: "Y", parking: "Y" },
+    rentalInfo: "서비스센터 휠체어·유모차 대여 09:00~18:00",
+    usageHour: "연중무휴",
+    tip: "모래 대신 해변 목데크를 따라 가면 바다 앞까지만 이동해요. 서핑 보드 대신 그늘 매트도 대여돼요.",
+  },
+  {
+    contentid: "OT5000002",
+    title: "새별오름",
+    addr1: "제주특별자치도 제주시 조천읍 교래리",
+    areacode: "5", sigungucode: "1",
+    cat3name: "오름/자연", kind: "outdoor",
+    themes: ["park"], subArea: "조천", emoji: "🌄",
+    barrier: { rental: "N", toilet: "Y", enterable: "Y", parking: "Y" },
+    usageHour: "09:00~18:00",
+    tip: "완경사 계단식 데크로 정상 근처 전망대까지 이동 가능해요. 바람이 강한 날엔 외투를 챙기세요.",
+  },
+  {
+    contentid: "OT5000003",
+    title: "돈내코 계곡",
+    addr1: "제주특별자치도 제주시 아라일동",
+    areacode: "5", sigungucode: "1",
+    cat3name: "계곡/자연", kind: "outdoor",
+    themes: ["park"], subArea: "돈내코", emoji: "🌲",
+    barrier: { rental: "N", toilet: "Y", enterable: "Y", parking: "Y" },
+    usageHour: "08:00~19:00",
+    tip: "주차장에서 데크 시작점까지 30m라 이동 부담이 적어요. 쉼터가 중간마다 있어요.",
+  },
+  {
+    contentid: "OT5000004",
+    title: "제주 아쿠아플라넷",
+    addr1: "제주특별자치도 제주시 조천읍 백록로 95",
+    areacode: "5", sigungucode: "1",
+    cat3name: "수족관", kind: "indoor",
+    themes: ["sea", "indoor"], subArea: "조천", emoji: "🐠",
+    barrier: { rental: "Y", toilet: "Y", enterable: "Y", elevator: "Y", parking: "Y" },
+    usageHour: "09:30~19:00",
+    tip: "관람 동선 전체가 엘리베이터와 완만한 경사로로 연결돼요. 오페라하우스 전망 테라스도 평평해요.",
+  },
+  {
+    contentid: "OT5000005",
+    title: "카멜리아힐",
+    addr1: "제주특별자치도 서귀포시 안덕면 병액로 166",
+    areacode: "5", sigungucode: "2",
+    cat3name: "식물원", kind: "mixed",
+    themes: ["park", "indoor"], subArea: "서귀포", emoji: "🌺",
+    barrier: { rental: "Y", toilet: "Y", enterable: "Y", parking: "Y" },
+    usageHour: "08:30~18:30",
+    tip: "온실 가든은 실내라 날씨와 상관없이 산책돼요. 도보 쉼표(그늘 쉘터)가 구간마다 있어요.",
+  },
+
+  /* -------------------------- 강원 (동해) -------------------------- */
+  {
+    contentid: "OT3260001",
+    title: "경포해변 무장애 목데크",
+    addr1: "강원특별자치도 강릉시 경포로 365",
+    areacode: "32", sigungucode: "1",
+    cat3name: "해수욕장/해변", kind: "outdoor",
+    themes: ["sea"], subArea: "강릉", emoji: "🏖️",
+    barrier: { rental: "Y", toilet: "Y", enterable: "Y", parking: "Y" },
+    rentalInfo: "해변 전용 휠체어 여름철 무료 대여 10:00~16:00",
+    usageHour: "09:00~18:00",
+    tip: "해변 목데크가 끝까지 이어져 파도 구경이 편해요. 대여는 해변 안내소에서 오전에 먼저 받아요.",
+  },
+  {
+    contentid: "OT3260002",
+    title: "속초해수욕장 평지 데크",
+    addr1: "강원특별자치도 속초시 조명정로 189",
+    areacode: "32", sigungucode: "1",
+    cat3name: "해수욕장/해변", kind: "outdoor",
+    themes: ["sea", "park"], subArea: "속초", emoji: "🌊",
+    barrier: { rental: "N", toilet: "Y", enterable: "Y", parking: "Y" },
+    usageHour: "연중무휴",
+    tip: "설악산 전망까지 평평한 데크라 보행기 산책에 좋아요. 오후엔 바람이 불어 담요를 챙기세요.",
+  },
+  /* -------------------------- 인천 (서해) -------------------------- */
+  {
+    contentid: "OT2260001",
+    title: "을왕리해수욕장 무장애 데크",
+    addr1: "인천광역시 중구 을왕동",
+    areacode: "2", sigungucode: "6",
+    cat3name: "해수욕장/해변", kind: "outdoor",
+    themes: ["sea"], subArea: "을왕리", emoji: "🏖️",
+    barrier: { rental: "Y", toilet: "Y", enterable: "Y", parking: "Y" },
+    rentalInfo: "해변 안내센터 전용 휠체어 무료 대여 09:00~18:00",
+    usageHour: "연중무휴",
+    tip: "해변 앞 상가까지 무턱 포장이 이어져 저녁 산책도 편해요.",
+  },
+  {
+    contentid: "OT2260002",
+    title: "월미도 문화공원 평지길",
+    addr1: "인천광역시 중구 월미문화로 40",
+    areacode: "2", sigungucode: "6",
+    cat3name: "공원", kind: "mixed",
+    themes: ["park"], subArea: "월미도", emoji: "🌳",
+    barrier: { rental: "N", toilet: "Y", enterable: "Y", parking: "Y" },
+    usageHour: "09:00~21:00",
+    tip: "공원 입구부터 유람선 승강장까지 완만한 경사로예요. 낮 시간엔 문화거리 공연이 열려요.",
+  },
+  /* -------------------------- 경남 (남해) -------------------------- */
+  {
+    contentid: "OT3660001",
+    title: "통영 해변 데크산책로",
+    addr1: "경상남도 통영시 도남동",
+    areacode: "36", sigungucode: "2",
+    cat3name: "해수욕장/해변", kind: "outdoor",
+    themes: ["sea", "park"], subArea: "통영", emoji: "🌉",
+    barrier: { rental: "N", toilet: "Y", enterable: "Y", parking: "Y" },
+    usageHour: "연중무휴",
+    tip: "한려수도 뱃길 전망이 보이는 데크예요. 유람선 승선 시 무턱 경사로 승강장을 이용해요.",
+  },
+  {
+    contentid: "OT3660002",
+    title: "거제 바람의 언덕 평지정원",
+    addr1: "경상남도 거제시 상동",
+    areacode: "36", sigungucode: "2",
+    cat3name: "공원", kind: "mixed",
+    themes: ["park"], subArea: "거제", emoji: "🌺",
+    barrier: { rental: "N", toilet: "Y", enterable: "Y", parking: "Y" },
+    usageHour: "09:00~19:00",
+    tip: "정원 메인 동선이 평평한 카페트길이라 유모차·보행기 모두 편해요.",
+  },
+  /* -------------------------- 경북 (동해 남부) -------------------------- */
+  {
+    contentid: "OT3560001",
+    title: "포항 영일대 해변 데크",
+    addr1: "경상북도 포항시 북구 두호동",
+    areacode: "35", sigungucode: "2",
+    cat3name: "해수욕장/해변", kind: "outdoor",
+    themes: ["sea"], subArea: "포항", emoji: "🏖️",
+    barrier: { rental: "N", toilet: "Y", enterable: "Y", parking: "Y" },
+    usageHour: "연중무휴",
+    tip: "해변 열차 승강장까지 데크가 이어져요. 바람은 아침이 가장 적어요.",
+  },
+  {
+    contentid: "OT3560002",
+    title: "울진 죽도 해안 목데크",
+    addr1: "경상북도 울진군 죽도면",
+    areacode: "35", sigungucode: "3",
+    cat3name: "해수욕장/해변", kind: "outdoor",
+    themes: ["sea"], subArea: "울진", emoji: "🌉",
+    barrier: { rental: "N", toilet: "Y", enterable: "Y", parking: "Y" },
+    usageHour: "연중무휴",
+    tip: "죽도 방파제까지 목데크가 이어져요. 낚시 인파는 오후에 늘어 아침 방문을 권해요.",
+  },
+];
+
+/* ========================= 무장애 탐방로 ========================= */
+const TRAILS = [
+  /* -------------------------- 부산 -------------------------- */
+  {
+    trailId: "TR-BS-01",
+    agency: "부산 해운대구",
+    parkName: "해운대 해변 데크길",
+    trailName: "구멍새길 목데크 구간",
+    subArea: "해운대", themes: ["sea"], emoji: "🌉",
+    distance: "1.8km", duration: "50분",
+    maxSlope: 4.2, slopeRating: "완만(쉬움)",
+    surface: "목재 데크 + 무턱 포장",
+    startPoint: "해운대해수욕장 중앙광장",
+    endPoint: "동백섬 입구",
+    handrail: "Y", restArea: "Y", accessibleToilet: "Y",
+    tip: "데크가 해수면 높이라 파도 튀는 날엔 안전 난간 가까이 걷세요.",
+  },
+  {
+    trailId: "TR-BS-02",
+    agency: "부산 해운대구",
+    parkName: "동백섬 산책로",
+    trailName: "동백섬 평지 회로",
+    subArea: "동백섬", themes: ["sea", "park"], emoji: "🌴",
+    distance: "1.0km", duration: "40분",
+    maxSlope: 5.5, slopeRating: "완만(쉬움)",
+    surface: "매끈 포장 + 부분 데크",
+    startPoint: "동백섬 주차장",
+    endPoint: "동백섬 등대",
+    handrail: "Y", restArea: "Y", accessibleToilet: "Y",
+    tip: "회로 구간이라 중간에 돌아와도 좋아요. 등대 앞에 저상 테이블 벤치가 있어요.",
+  },
+  {
+    trailId: "TR-BS-03",
+    agency: "부산 기장군",
+    parkName: "기장 해안 데크길",
+    trailName: "오랑해변 데크 구간",
+    subArea: "기장", themes: ["sea"], emoji: "🌉",
+    distance: "1.2km", duration: "40분",
+    maxSlope: 6.8, slopeRating: "완만(쉬움)",
+    surface: "콘크리트 데크",
+    startPoint: "오랑해변 주차장",
+    endPoint: "오랑 갯바위 전망점",
+    handrail: "Y", restArea: "Y", accessibleToilet: "Y",
+    tip: "전망점까지 데크가 이어져요. 바람 많은 날엔 후드 챙기세요.",
+  },
+  {
+    trailId: "TR-BS-04",
+    agency: "부산 기장군",
+    parkName: "기장 갈치봉 탐방로",
+    trailName: "갈치봉 능선 구간",
+    subArea: "기장", themes: ["park"], emoji: "⛰️",
+    distance: "2.6km", duration: "90분",
+    maxSlope: 11.8, slopeRating: "보통(경사 있음)",
+    surface: "자연흙 + 계단",
+    startPoint: "갈치봉 등산로 입구",
+    endPoint: "갈치봉 정상",
+    handrail: "N", restArea: "N", accessibleToilet: "N",
+    tip: "경사가 있어 보행 보조기에는 부적합한 구간이에요.",
+  },
+  {
+    trailId: "TR-BS-05",
+    agency: "부산 수영구",
+    parkName: "광안리 해변 보행데크",
+    trailName: "광안대교 전망 데크",
+    subArea: "광안리", themes: ["sea"], emoji: "🌉",
+    distance: "1.4km", duration: "45분",
+    maxSlope: 3.6, slopeRating: "완만(매우 쉬움)",
+    surface: "무턱 방수 데크",
+    startPoint: "광안리 해변 주차장",
+    endPoint: "민락 수변공원 입구",
+    handrail: "Y", restArea: "Y", accessibleToilet: "Y",
+    tip: "야경이 좋아 저녁 산책에 적합해요. 데크 틈새로 바람이 불어 담요를 챙기세요.",
+  },
+
+  /* -------------------------- 서울 -------------------------- */
+  {
+    trailId: "TR-SL-01",
+    agency: "서울 한강사업본부",
+    parkName: "여의도 한강공원",
+    trailName: "한강 둘레길 평지 구간",
+    subArea: "여의도", themes: ["park", "sea"], emoji: "🌳",
+    distance: "2.4km", duration: "60분",
+    maxSlope: 3.1, slopeRating: "완만(매우 쉬움)",
+    surface: "무턱 아스팔트 + 데크",
+    startPoint: "여의도동 주차장 안내소",
+    endPoint: "한강 전망 광장",
+    handrail: "Y", restArea: "Y", accessibleToilet: "Y",
+    tip: "구간 중간 이동 화장실도 있어요. 벚꽃철엔 데크가 붐비니 오전 산책을 권해요.",
+  },
+  {
+    trailId: "TR-SL-02",
+    agency: "서울시 설계",
+    parkName: "서울식물원",
+    trailName: "호수 데크 산책로",
+    subArea: "마곡", themes: ["park"], emoji: "🌿",
+    distance: "1.5km", duration: "45분",
+    maxSlope: 4.6, slopeRating: "완만(쉬움)",
+    surface: "목재 데크",
+    startPoint: "주 전시관 정문",
+    endPoint: "호수 전망 데크",
+    handrail: "Y", restArea: "Y", accessibleToilet: "Y",
+    tip: "비 오는 날엔 주 전시관(실내)에서 데크 일부만 잠깐 이동해요.",
+  },
+  {
+    trailId: "TR-SL-03",
+    agency: "서울숲관리사업소",
+    parkName: "서울숲",
+    trailName: "문화예술공원 평지 데크",
+    subArea: "서울숲", themes: ["park"], emoji: "🌲",
+    distance: "1.9km", duration: "50분",
+    maxSlope: 3.8, slopeRating: "완만(매우 쉬움)",
+    surface: "무턱 데크 + 포장",
+    startPoint: "서울숲 주차장",
+    endPoint: "잔디광장",
+    handrail: "Y", restArea: "Y", accessibleToilet: "Y",
+    tip: "잔디광장 가장자리 데크가 가장 평평해요. 도서 카페 쉼터도 있어요.",
+  },
+  {
+    trailId: "TR-SL-04",
+    agency: "국립공원공단 북한산",
+    parkName: "북한산국립공원",
+    trailName: "우이천 입구 능선 구간",
+    subArea: "북한산", themes: ["park"], emoji: "⛰️",
+    distance: "2.2km", duration: "80분",
+    maxSlope: 12.5, slopeRating: "보통(경사 있음)",
+    surface: "자연흙 + 계단",
+    startPoint: "우이 입구",
+    endPoint: "빼떼바위",
+    handrail: "N", restArea: "N", accessibleToilet: "N",
+    tip: "경사가 있어 보행 보조기에는 부적합한 구간이에요.",
+  },
+
+  /* -------------------------- 제주 -------------------------- */
+  {
+    trailId: "TR-JJ-01",
+    agency: "제주 애월읍",
+    parkName: "협재 해변",
+    trailName: "협재 목데크 구간",
+    subArea: "애월/협재", themes: ["sea"], emoji: "🌉",
+    distance: "0.8km", duration: "25분",
+    maxSlope: 3.6, slopeRating: "완만(매우 쉬움)",
+    surface: "목재 데크",
+    startPoint: "협재 서비스센터",
+    endPoint: "협재 해변 그늘 쉘터",
+    handrail: "Y", restArea: "Y", accessibleToilet: "Y",
+    tip: "데크가 모래 위에 설치돼 바다 앞까지 이동이 쉬워요. 휠체어 바퀴에 모래가 붙으면 서비스센터에서 물 세척이 돼요.",
+  },
+  {
+    trailId: "TR-JJ-02",
+    agency: "제주 조천읍",
+    parkName: "새별오름",
+    trailName: "새별오름 완만 탐방로",
+    subArea: "조천", themes: ["park"], emoji: "🌄",
+    distance: "1.3km", duration: "45분",
+    maxSlope: 7.9, slopeRating: "완만(쉬움)",
+    surface: "계단식 데크 + 완경사 포장",
+    startPoint: "새별오름 주차장",
+    endPoint: "정상 전망대",
+    handrail: "Y", restArea: "Y", accessibleToilet: "Y",
+    tip: "중간 쉼터에서 봄나물 논 풍경이 보여요. 전망대 입구까지 데크가 이어져요.",
+  },
+  {
+    trailId: "TR-JJ-03",
+    agency: "제주 한라산 북부",
+    parkName: "돈내코 계곡",
+    trailName: "돈내코 데크길",
+    subArea: "돈내코", themes: ["park"], emoji: "🌲",
+    distance: "1.1km", duration: "35분",
+    maxSlope: 5.2, slopeRating: "완만(쉬움)",
+    surface: "무턱 데크",
+    startPoint: "돈내코 주차장",
+    endPoint: "계곡 전망 쉼터",
+    handrail: "Y", restArea: "Y", accessibleToilet: "Y",
+    tip: "곰솔 숲 사이 데크라 여름에도 시원해요. 쉼터마다 저상 벤치가 있어요.",
+  },
+  {
+    trailId: "TR-JJ-04",
+    agency: "제주 서귀포시",
+    parkName: "서귀포 올레",
+    trailName: "천제연 인근 올레 구간",
+    subArea: "서귀포", themes: ["park"], emoji: "⛰️",
+    distance: "1.6km", duration: "55분",
+    maxSlope: 10.4, slopeRating: "보통(경사 있음)",
+    surface: "자연길 + 경사로",
+    startPoint: "천제연폭포 상류 주차장",
+    endPoint: "올레 길 입구",
+    handrail: "N", restArea: "N", accessibleToilet: "N",
+    tip: "경사가 있어 보행 보조기에는 부적합한 구간이에요.",
+  },
+
+  /* -------------------------- 강원 (동해) -------------------------- */
+  {
+    trailId: "TR-GW-01",
+    agency: "강원 강릉시",
+    parkName: "경포 해변 데크길",
+    trailName: "경포대 평지 데크 구간",
+    subArea: "강릉", themes: ["sea"], emoji: "🌉",
+    distance: "1.5km", duration: "45분",
+    maxSlope: 4.8, slopeRating: "완만(쉬움)",
+    surface: "목재 데크 + 무턱 포장",
+    startPoint: "경포해수욕장 주차장",
+    endPoint: "경포대 입구 광장",
+    handrail: "Y", restArea: "Y", accessibleToilet: "Y",
+    tip: "데크 중간에 쉼터 벤치가 있어 중간에 쉬어 가도 돼요.",
+  },
+  {
+    trailId: "TR-GW-02",
+    agency: "강원 속초시",
+    parkName: "속초 해변 산책로",
+    trailName: "설악정자 → 대포항 데크",
+    subArea: "속초", themes: ["sea"], emoji: "🌉",
+    distance: "2.0km", duration: "60분",
+    maxSlope: 6.2, slopeRating: "완만(쉬움)",
+    surface: "무턱 방수 데크",
+    startPoint: "설악정자 방파제",
+    endPoint: "대포항 인근 데크 출구",
+    handrail: "Y", restArea: "Y", accessibleToilet: "Y",
+    tip: "바다가 보이는 긴 데크예요. 겨울철 바람이 강해 방한용품을 챙기세요.",
+  },
+  /* -------------------------- 인천 (서해) -------------------------- */
+  {
+    trailId: "TR-IC-01",
+    agency: "인천 중구",
+    parkName: "을왕리 해변 데크길",
+    trailName: "을왕리 은해산 목데크 구간",
+    subArea: "을왕리", themes: ["sea"], emoji: "🌉",
+    distance: "1.2km", duration: "40분",
+    maxSlope: 5.0, slopeRating: "완만(쉬움)",
+    surface: "목재 데크",
+    startPoint: "을왕리해수욕장 안내센터",
+    endPoint: "은해산 전망휴게소",
+    handrail: "Y", restArea: "Y", accessibleToilet: "Y",
+    tip: "전망휴게소에서 서해 방면 바다가 보여요.",
+  },
+  /* -------------------------- 경남 (남해) -------------------------- */
+  {
+    trailId: "TR-GN-01",
+    agency: "경남 통영시",
+    parkName: "통영 해안 데크길",
+    trailName: "유람선 승강장 → 방패섬 전망 데크",
+    subArea: "통영", themes: ["sea"], emoji: "🌉",
+    distance: "1.3km", duration: "40분",
+    maxSlope: 5.8, slopeRating: "완만(쉬움)",
+    surface: "무턱 방수 데크",
+    startPoint: "통영 유람선 터미널",
+    endPoint: "방패섬 전망대 입구",
+    handrail: "Y", restArea: "Y", accessibleToilet: "Y",
+    tip: "뱃길 풍경이 좋아 오전 뱃놀이 후 산책 코스로 적합해요.",
+  },
+  /* -------------------------- 경북 (동해 남부) -------------------------- */
+  {
+    trailId: "TR-GB-01",
+    agency: "경북 포항시",
+    parkName: "영일대 해변 데크길",
+    trailName: "영일대 해변 보행데크",
+    subArea: "포항", themes: ["sea"], emoji: "🌉",
+    distance: "1.7km", duration: "50분",
+    maxSlope: 3.9, slopeRating: "완만(매우 쉬움)",
+    surface: "무턱 방수 데크",
+    startPoint: "영일대해변수욕장 주차장",
+    endPoint: "해변 열차 승강장",
+    handrail: "Y", restArea: "Y", accessibleToilet: "Y",
+    tip: "해변 열차와 연계하면 산책 후 이동이 편해요.",
+  },
+];
+
+/* ============================ 식당 ============================ */
+const RESTAURANTS = [
+  /* -------------------------- 부산 -------------------------- */
+  {
+    bizesId: "SGB6600121",
+    bizesNm: "해운대 솥밥집",
+    indsLclsNm: "음식", indsMclsNm: "한식", indsSclsNm: "백반/가정식",
+    rdnmAdr: "부산 해운대구 해운대해변로 235, 1층",
+    subAreas: ["해운대", "동백섬"],
+    xswftm: "129.1603", yswftm: "35.1586",
+    access: { stepFree: true, toilet: true, lowTable: true, parking: true, memo: "입구 평평, 안쪽 저상 테이블 먼저 안내받기" },
+    tip: "주말 12시~1시는 대기가 있어 11시 30분 방문을 권해요.",
+  },
+  {
+    bizesId: "SGB6600122",
+    bizesNm: "동백섬 물회집",
+    indsLclsNm: "음식", indsMclsNm: "한식", indsSclsNm: "해물/생선",
+    rdnmAdr: "부산 해운대구 중동 1230, 동백섬 주차장 반대편",
+    subAreas: ["동백섬", "해운대"],
+    xswftm: "129.1681", yswftm: "35.1563",
+    access: { stepFree: true, toilet: false, lowTable: false, parking: true, memo: "문 폭 90cm 이상, 휠체어 테이블 2개" },
+    tip: "휠체어용 넓은 테이블은 창가 자리, 미리 말씀하면 배려받을 수 있어요.",
+  },
+  {
+    bizesId: "SGB6600123",
+    bizesNm: "송정 갈치구이집",
+    indsLclsNm: "음식", indsMclsNm: "한식", indsSclsNm: "해물/생선",
+    rdnmAdr: "부산 해운대구 송정구서로 61, 1층",
+    subAreas: ["송정", "기장"],
+    xswftm: "129.1857", yswftm: "35.1801",
+    access: { stepFree: true, toilet: true, lowTable: true, parking: false, memo: "주차는 해변열차 주차장 이용" },
+    tip: "갈치구이는 2인분부터 조리되지만 반반 조리 요청이 가능해요.",
+  },
+  {
+    bizesId: "SGB6600124",
+    bizesNm: "기장 왕솥밥",
+    indsLclsNm: "음식", indsMclsNm: "한식", indsSclsNm: "백반/가정식",
+    rdnmAdr: "부산 기장군 기장읍 기장해안로 26, 1층",
+    subAreas: ["기장"],
+    xswftm: "129.2142", yswftm: "35.2447",
+    access: { stepFree: true, toilet: true, lowTable: true, parking: true, memo: "입구 무턱, 화장실 안쪽 손잡이 있음" },
+    tip: "식사 후 해안 데크길 입구까지 도보 3분이에요.",
+  },
+  {
+    bizesId: "SGB6600125",
+    bizesNm: "광안리 씨푸드 파크",
+    indsLclsNm: "음식", indsMclsNm: "횟집/해산물", indsSclsNm: "해산물",
+    rdnmAdr: "부산 수영구 광안해변로 219, 1~2층",
+    subAreas: ["광안리"],
+    xswftm: "129.1684", yswftm: "35.1557",
+    access: { stepFree: true, toilet: true, lowTable: false, parking: true, memo: "1층만 무장애, 2층은 계단" },
+    tip: "예약 시 '1층 휠체어 자리'라고 말하면 창가 자리로 안내돼요.",
+  },
+  {
+    bizesId: "SGB6600126",
+    bizesNm: "해운대 유리테라스",
+    indsLclsNm: "음식", indsMclsNm: "카페/양식", indsSclsNm: "브런치",
+    rdnmAdr: "부산 해운대구 해운대로 570, 2층",
+    subAreas: ["해운대"],
+    xswftm: "129.1526", yswftm: "35.1631",
+    access: { stepFree: false, toilet: false, lowTable: false, parking: false, memo: "입구 계단 2단, 경사로 미설치" },
+    tip: "입구에 단차가 있어 휠체어 이용은 어려워요.",
+  },
+
+  /* -------------------------- 서울 -------------------------- */
+  {
+    bizesId: "SGB1100121",
+    bizesNm: "여의도 봄나물 밥상",
+    indsLclsNm: "음식", indsMclsNm: "한식", indsSclsNm: "백반/가정식",
+    rdnmAdr: "서울 영등포구 여의대방로 44, 1층",
+    subAreas: ["여의도"],
+    xswftm: "126.9241", yswftm: "37.5216",
+    access: { stepFree: true, toilet: true, lowTable: true, parking: true, memo: "입구 무턱, 저상 테이블 4석" },
+    tip: "점심 11시 30분 오픈이라 그때 들어가면 자리가 여유로워요.",
+  },
+  {
+    bizesId: "SGB1100122",
+    bizesNm: "마곡 자연식당",
+    indsLclsNm: "음식", indsMclsNm: "한식", indsSclsNm: "채식/건강식",
+    rdnmAdr: "서울 강서구 마곡중앙로 126, 1층",
+    subAreas: ["마곡"],
+    xswftm: "126.8295", yswftm: "37.5678",
+    access: { stepFree: true, toilet: true, lowTable: true, parking: true, memo: "식물원 정문 도보 5분" },
+    tip: "맑은 채식 메뉴가 많아 어르신 입맛에 부담이 적어요.",
+  },
+  {
+    bizesId: "SGB1100123",
+    bizesNm: "성수 저상 카페리",
+    indsLclsNm: "음식", indsMclsNm: "카페/디저트", indsSclsNm: "카페",
+    rdnmAdr: "서울 성동구 뚝섬로 302, 1층",
+    subAreas: ["서울숲"],
+    xswftm: "127.0504", yswftm: "37.5447",
+    access: { stepFree: true, toilet: true, lowTable: true, parking: false, memo: "서울숲 주차장 이용 권장" },
+    tip: "커피와 함께 어르신 과일주스 메뉴가 별도로 있어요.",
+  },
+  {
+    bizesId: "SGB1100124",
+    bizesNm: "인사동 솥밥집",
+    indsLclsNm: "음식", indsMclsNm: "한식", indsSclsNm: "백반/가정식",
+    rdnmAdr: "서울 종로구 인사동길 33, 지하1층~1층",
+    subAreas: ["광화문"],
+    xswftm: "126.9858", yswftm: "37.5716",
+    access: { stepFree: true, toilet: true, lowTable: false, parking: true, memo: "1층 좌석만 무장애, 엘리베이터 있음" },
+    tip: "지하 식당가 대신 1층 휠체어 자리를 요청하세요.",
+  },
+  {
+    bizesId: "SGB1100125",
+    bizesNm: "여의도 유리궁전",
+    indsLclsNm: "음식", indsMclsNm: "한식", indsSclsNm: "맥주/호프",
+    rdnmAdr: "서울 영등포구 여의동로 330, 2층",
+    subAreas: ["여의도"],
+    xswftm: "126.9333", yswftm: "37.5292",
+    access: { stepFree: false, toilet: false, lowTable: false, parking: false, memo: "입구 단차 1단, 경사로 미설치" },
+    tip: "입구에 단차가 있어 휠체어 이용은 어려워요.",
+  },
+
+  /* -------------------------- 제주 -------------------------- */
+  {
+    bizesId: "SGB5000121",
+    bizesNm: "협재 해물뚝배기",
+    indsLclsNm: "음식", indsMclsNm: "한식", indsSclsNm: "해물/생선",
+    rdnmAdr: "제주 제주시 애월읍 협재1길 12, 1층",
+    subAreas: ["애월/협재"],
+    xswftm: "126.6299", yswftm: "33.4647",
+    access: { stepFree: true, toilet: true, lowTable: true, parking: true, memo: "해변 서비스센터 도보 2분" },
+    tip: "해물뚝배기는 어르신이 먹기 좋게 국물 적게 요청 가능해요.",
+  },
+  {
+    bizesId: "SGB5000122",
+    bizesNm: "조천 바다밥상",
+    indsLclsNm: "음식", indsMclsNm: "한식", indsSclsNm: "해물/생선",
+    rdnmAdr: "제주 제주시 조천읍 신촌리 2531, 1층",
+    subAreas: ["조천"],
+    xswftm: "126.7215", yswftm: "33.5067",
+    access: { stepFree: true, toilet: true, lowTable: true, parking: true, memo: "새별오름 입구에서 차량 10분" },
+    tip: "점심 메뉴에 연하장(무치기 쉬운) 반찬 구성을 요청할 수 있어요.",
+  },
+  {
+    bizesId: "SGB5000123",
+    bizesNm: "돈내코 곰솔채식",
+    indsLclsNm: "음식", indsMclsNm: "한식", indsSclsNm: "채식/건강식",
+    rdnmAdr: "제주 제주시 아라일동 1456, 1층",
+    subAreas: ["돈내코", "조천"],
+    xswftm: "126.6836", yswftm: "33.4438",
+    access: { stepFree: true, toilet: true, lowTable: false, parking: true, memo: "계곡 데크 입구 도보 3분" },
+    tip: "산책 후 도라지 차가 따뜻하게 준비돼 있어요.",
+  },
+  {
+    bizesId: "SGB5000124",
+    bizesNm: "서귀포 갈치조림집",
+    indsLclsNm: "음식", indsMclsNm: "한식", indsSclsNm: "해물/생선",
+    rdnmAdr: "제주 서귀포시 중정로 51, 1층",
+    subAreas: ["서귀포"],
+    xswftm: "126.5216", yswftm: "33.2487",
+    access: { stepFree: true, toilet: false, lowTable: true, parking: true, memo: "화장실은 옆 건물 1층 공용" },
+    tip: "조림은 뼈 제거 요청이 가능해요.",
+  },
+  {
+    bizesId: "SGB5000125",
+    bizesNm: "애월 돌하르방 파스타",
+    indsLclsNm: "음식", indsMclsNm: "카페/양식", indsSclsNm: "양식",
+    rdnmAdr: "제주 제주시 애월읍 애월해안로 219, 2층",
+    subAreas: ["애월/협재"],
+    xswftm: "126.5442", yswftm: "33.4669",
+    access: { stepFree: false, toilet: false, lowTable: false, parking: false, memo: "계단식 2층 입점, 엘리베이터 없음" },
+    tip: "계단 위 2층 자리라 휠체어 이용은 어려워요.",
+  },
+
+  /* -------------------------- 강원 (동해) -------------------------- */
+  {
+    bizesId: "SGB3260001",
+    bizesNm: "강릉 커피거리 해맞이카페",
+    indsLclsNm: "음식", indsMclsNm: "카페/양식", indsSclsNm: "카페",
+    rdnmAdr: "강원 강릉시 창해로 307, 1층",
+    subAreas: ["강릉"],
+    xswftm: "128.8988", yswftm: "37.7630",
+    access: { stepFree: true, toilet: true, lowTable: true, parking: true, memo: "입구 무턱, 안쪽 저상 좌석 안내" },
+    tip: "창가 바다뷰 좌석은 1층 안쪽, 미리 말하면 안내돼요.",
+  },
+  {
+    bizesId: "SGB3260002",
+    bizesNm: "속초 대포항 물회집",
+    indsLclsNm: "음식", indsMclsNm: "한식", indsSclsNm: "해물/생선",
+    rdnmAdr: "강원 속초시 설악로 66, 1층",
+    subAreas: ["속초"],
+    xswftm: "128.5897", yswftm: "38.2035",
+    access: { stepFree: true, toilet: false, lowTable: false, parking: true, memo: "문 폭 90cm, 휠체어 테이블 1개" },
+    tip: "휠체어 테이블은 한 개라 방문 전 전화 확인을 권해요.",
+  },
+  /* -------------------------- 인천 (서해) -------------------------- */
+  {
+    bizesId: "SGB2260001",
+    bizesNm: "을왕리 바다횟집",
+    indsLclsNm: "음식", indsMclsNm: "횟집/해산물", indsSclsNm: "해산물",
+    rdnmAdr: "인천 중구 을왕대로 78, 1층",
+    subAreas: ["을왕리"],
+    xswftm: "126.7053", yswftm: "37.4560",
+    access: { stepFree: true, toilet: true, lowTable: false, parking: true, memo: "입구 평평, 화장실 연결길 무턱" },
+    tip: "해물탕은 2인분부터 조리되지만 반반 요청이 가능해요.",
+  },
+  /* -------------------------- 경남 (남해) -------------------------- */
+  {
+    bizesId: "SGB3660001",
+    bizesNm: "통영 항남 물장수",
+    indsLclsNm: "음식", indsMclsNm: "한식", indsSclsNm: "해물/생선",
+    rdnmAdr: "경남 통영시 항남길 25, 1층",
+    subAreas: ["통영"],
+    xswftm: "128.4358", yswftm: "34.8526",
+    access: { stepFree: true, toilet: true, lowTable: true, parking: true, memo: "입구 무턱, 저상 테이블 2개" },
+    tip: "유람선 터미널에서 도보 5분, 식사 후 데크길 산책이 이어져요.",
+  },
+  /* -------------------------- 경북 (동해 남부) -------------------------- */
+  {
+    bizesId: "SGB3560001",
+    bizesNm: "포항 두두 물회밥집",
+    indsLclsNm: "음식", indsMclsNm: "한식", indsSclsNm: "해물/생선",
+    rdnmAdr: "경북 포항시 북구 두두로 30, 1층",
+    subAreas: ["포항"],
+    xswftm: "129.3682", yswftm: "36.0418",
+    access: { stepFree: true, toilet: true, lowTable: false, parking: true, memo: "입구 무턱, 계단 없는 1층" },
+    tip: "식사 후 영일대 데크길 입구까지 도보 4분이에요.",
+  },
+];
+
+/** 지역별 기본 코스에서 우선 참조할 대표 서브지역 */
+const REGION_MAIN_SUBAREA = {
+  부산: "해운대",
+  서울: "여의도",
+  제주: "애월/협재",
+  강원: "강릉",
+  인천: "을왕리",
+  경남: "통영",
+  경북: "포항",
+};
+
+/** 상권정보 반경 조회 등에 쓰는 지역 대표 좌표(WGS84) — 관광지 좌표가 없을 때 폴백 */
+const REGION_CENTER = {
+  부산: { x: "129.1583", y: "35.1583" },  // 해운대
+  서울: { x: "126.9241", y: "37.5216" },  // 여의도
+  제주: { x: "126.6299", y: "33.4647" },  // 협재
+  강원: { x: "128.8970", y: "37.7521" },  // 강릉
+  인천: { x: "126.7056", y: "37.4564" },  // 을왕리
+  경남: { x: "128.4365", y: "34.8574" },  // 통영
+  경북: { x: "129.3435", y: "36.0190" },  // 포항 시청
+  울산: { x: "129.3114", y: "35.5399" },  // 울산 시청
+  경기: { x: "127.0096", y: "37.2790" },  // 수원
+  대전: { x: "127.3849", y: "36.3510" },  // 대전
+  대구: { x: "128.6014", y: "35.8686" },  // 대구
+  광주: { x: "126.8514", y: "35.1595" },  // 광주
+  세종: { x: "127.2891", y: "36.4801" },  // 세종
+  충북: { x: "127.4914", y: "36.6424" },  // 청주
+  충남: { x: "127.1520", y: "36.8065" },  // 천안
+  전북: { x: "127.1490", y: "35.8196" },  // 전주
+  전남: { x: "127.6622", y: "34.7604" },  // 여수
+};
+
+/* ============================ 무장애 숙소(호텔) ============================ */
+/**
+ * 1박 2일 코스용 샘플 — TourAPI 숙박 콘텐츠(contenttypeid=32) 스타일.
+ * 라이브에서는 한국관광공사_무장애 여행 정보(KorWithService2) areaBasedList2의
+ * 숙박 카테고리를 사용하고, 실패 시 이 샘플로 폴백한다.
+ */
+const HOTELS = [
+  {
+    contentid: "HT-BS-01",
+    title: "해운대 오션 무장애 호텔",
+    addr1: "부산광역시 해운대구 해운대해변로 298",
+    subArea: "해운대",
+    barrier: { rental: "Y", toilet: "Y", enterable: "Y", elevator: "Y", parking: "Y" },
+    roomInfo: "졸대 폭 90cm 이상 객실 4개, 욕실 손잡이·미닫이 문",
+    tip: "오션뷰 무장애 객실은 한정 수량 — 예약 시 '휠체어 객실'로 꼭 요청하세요.",
+  },
+  {
+    contentid: "HT-SL-01",
+    title: "여의도 강변 무장애 호텔",
+    addr1: "서울특별시 영등포구 여의대방로 110",
+    subArea: "여의도",
+    barrier: { rental: "N", toilet: "Y", enterable: "Y", elevator: "Y", parking: "Y" },
+    roomInfo: "전 객실 미닫이 출입문, 배리어프리 유닛 6개",
+    tip: "한강 산책로와 지하로 연결돼 재초점 산책에 좋아요.",
+  },
+  {
+    contentid: "HT-JJ-01",
+    title: "애월 바다 무장애 리조트",
+    addr1: "제주특별자치도 제주시 애월읍 애월해안로 320",
+    subArea: "애월",
+    barrier: { rental: "Y", toilet: "Y", enterable: "Y", elevator: "Y", parking: "Y" },
+    roomInfo: "1층 바다뷰 배리어프리 객실, 화장실 문 폭 100cm",
+    tip: "1층 객실은 수가 적어 이른 시간 예약을 권해요.",
+  },
+  {
+    contentid: "HT-GW-01",
+    title: "경포 수변 무장애 호텔",
+    addr1: "강원특별자치도 강릉시 창해로 307",
+    subArea: "강릉",
+    barrier: { rental: "Y", toilet: "Y", enterable: "Y", elevator: "Y", parking: "Y" },
+    roomInfo: "무장애 유닛 5개, 객실 내 욕창 방지 손잡이",
+    tip: "커피거리 도보권이라 저녁 카페 산책까지 이어가기 좋아요.",
+  },
+  {
+    contentid: "HT-IC-01",
+    title: "을왕리 프론트씨 무장애 호텔",
+    addr1: "인천광역시 중구 을왕대로 78",
+    subArea: "을왕리",
+    barrier: { rental: "N", toilet: "Y", enterable: "Y", elevator: "Y", parking: "Y" },
+    roomInfo: "졸대 없는 입구, 접이식 샤워 의자 비치",
+    tip: "해변 데크길 정면 — 저녁 야경 산책에 최적이에요.",
+  },
+  {
+    contentid: "HT-GN-01",
+    title: "통영 해안 무장애 호텔",
+    addr1: "경상남도 통영시 항남길 25",
+    subArea: "통영",
+    barrier: { rental: "N", toilet: "Y", enterable: "Y", elevator: "Y", parking: "Y" },
+    roomInfo: "배리어프리 객실 3개, 객실 캐시워크 포함",
+    tip: "유람선 터미널 도보 5분 — 뱃길 일정과 연결이 쉬워요.",
+  },
+  {
+    contentid: "HT-GB-01",
+    title: "영일대 파도 무장애 호텔",
+    addr1: "경상북도 포항시 북구 두두로 30",
+    subArea: "포항",
+    barrier: { rental: "Y", toilet: "Y", enterable: "Y", elevator: "Y", parking: "Y" },
+    roomInfo: "무장애 객실 4개, 해변 데크길 직결 통로",
+    tip: "해변 열차 승강장까지 데크로 연결돼요.",
+  },
+];
+
+
+/* ====== js/nlu.js ====== */
+/**
+ * nlu.js — 규칙 기반 의도 분석기 (자연어 → 파라미터)
+ *
+ * Function Calling 파이프라인의 1단계.
+ * 사용자 발화에서 지역·테마·동행·날씨·일정·식사 의사를 추출해
+ * 도구 호출 인자(arguments)로 변환한다.
+ * (LLM 연동 시 이 모듈을 모델 기반 파서로 교체하면 되는 인터페이스)
+ */
+
+const REGION_KEYWORDS = [
+  { region: "부산", keys: ["부산", "해운대", "기장", "동백섬", "광안리", "송정", "블루라인", "씨라이프", "해변열차"] },
+  { region: "서울", keys: ["서울", "여의도", "마곡", "서울숲", "경복궁", "청계천", "성수", "인사동", "광화문", "한강"] },
+  { region: "제주", keys: ["제주", "협재", "새별오름", "돈내코", "애월", "서귀포", "카멜리아", "조천"] },
+  { region: "강원", keys: ["강원", "동해", "동해 바다", "동해바다", "강릉", "속초", "양양", "정동진", "경포", "삼척", "동해시", "묵호", "주문진", "낙산", "설악", "안목"] },
+  { region: "인천", keys: ["인천", "서해", "을왕리", "송도", "월미도", "영종", "강화", "소래"] },
+  { region: "경남", keys: ["경남", "남해", "통영", "거제", "사천", "진주", "고성", "한려"] },
+  { region: "경북", keys: ["경북", "포항", "울진", "영덕", "경주", "호미곶", "죽도"] },
+  { region: "울산", keys: ["울산", "간절곶", "태화강", "진하"] },
+  { region: "경기", keys: ["경기", "수원", "안산", "평택", "가평", "양평", "시흥", "오이도"] },
+  { region: "대전", keys: ["대전"] },
+  { region: "대구", keys: ["대구"] },
+  { region: "광주", keys: ["광주"] },
+  { region: "세종", keys: ["세종"] },
+  { region: "충북", keys: ["충북", "충청북", "청주", "충주", "제천"] },
+  { region: "충남", keys: ["충남", "충청남", "천안", "아산", "당진", "태안", "안면도", "서산"] },
+  { region: "전북", keys: ["전북", "전라북", "전주", "군산", "익산", "남원"] },
+  { region: "전남", keys: ["전남", "전라남", "여수", "순천", "목포", "담양", "무안"] },
+];
+
+const THEME_KEYWORDS = [
+  { theme: "sea", keys: ["바다", "해변", "바닷가", "해수욕장", "갯바위", "파도"] },
+  { theme: "park", keys: ["산책", "공원", "숲", "데크", "둘레길", "오름", "정원", "자연", "평지"] },
+  { theme: "culture", keys: ["미술관", "박물관", "전시", "문화", "궁"] },
+  { theme: "indoor", keys: ["실내", "수족관", "아쿠아리움", "박람회"] },
+];
+
+const RAIN_KEYWORDS = ["비 오", "비가", "우천", "장마", "소나기", "흐린", "안개", "비오는"];
+
+const MOBILITY_KEYWORDS = {
+  wheelchair: ["휠체어"],
+  walker: ["보행기", "워커", "지팡이", "보행 보조"],
+  senior: ["부모님", "아버지", "어머니", "할아버지", "할머니", "어르신", "노모", "모시고", "친정", "노부모", "엄마", "아빠"],
+  stroller: ["유모차", "아기", "어린이", "아이랑"],
+};
+
+const FOOD_KEYWORDS = ["맛집", "식당", "점심", "저녁", "밥", "음식", "먹거리", "카페", "식사"];
+
+const GREETING_KEYWORDS = ["안녕", "하이", "hi", "hello", "뭐 하는", "누구야", "도움말", "사용법", "처음", "가이드"];
+
+function hasAny(text, keys) {
+  return keys.some((k) => text.includes(k));
+}
+
+/** 발화 → 구조화된 의도(intent) */
+function parseIntent(rawText) {
+  const text = (rawText || "").trim();
+  const lower = text.toLowerCase();
+
+  /* 지역 */
+  const regionHit = REGION_KEYWORDS.find((r) => hasAny(lower, r.keys));
+  const region = regionHit ? regionHit.region : null;
+
+  /* 테마 (복수 가능) */
+  const themes = THEME_KEYWORDS.filter((t) => hasAny(lower, t.keys)).map((t) => t.theme);
+
+  /* 날씨/동행/일정/식사 */
+  const rain = hasAny(lower, RAIN_KEYWORDS);
+  const mobility = Object.entries(MOBILITY_KEYWORDS)
+    .filter(([, keys]) => hasAny(lower, keys))
+    .map(([k]) => k);
+  const halfday = hasAny(lower, ["반나절", "오전", "오후", "아침"]);
+  const oneday = hasAny(lower, ["하루", "당일", "종일"]);
+  const wantsFood = hasAny(lower, FOOD_KEYWORDS);
+
+  /* 후속 요청 신호 */
+  const restaurantsOnly = hasAny(lower, ["식당만", "맛집만", "먹을 곳만", "점심만", "저녁만", "카페만"]);
+  const nextRegion = hasAny(lower, ["다른 지역", "지역 바꿔", "지역 바꾸"]);
+  const anotherCourse = hasAny(lower, ["다른 코스", "다시 추천", "다시 보여", "코스 바꿔", "다르게", "다른 장소", "다른 곳"]);
+  const greeting = hasAny(lower, GREETING_KEYWORDS) && !region && themes.length === 0 && !restaurantsOnly && !anotherCourse;
+  const outing = hasAny(lower, ["나들이", "가볼 만한", "찾아", "코스", "여행", "산책", "추천", "다려", "어디 가", "가고 싶", "가기 좋은"]);
+
+  /* 여행지 목록 요청 신호: 숫자 + 장소 명사 ("여행지 3개 추천", "장소 2곳 알려줘")
+     → 코스 조립이 아니라 관광지 N곳 목록으로 응답 */
+  const countM = text.match(/(\d+)\s*(개|곳|군데)/);
+  const spotsList = !!(countM && /(여행지|관광지|장소|곳|군데)/.test(text));
+  const wantN = countM ? parseInt(countM[1], 10) : 0;
+
+  const indoorOnly = rain || themes.includes("indoor");
+
+  const intent = {
+    text,
+    region, themes, rain, mobility,
+    duration: oneday ? "oneday" : halfday ? "halfday" : null,
+    wantsFood, restaurantsOnly, nextRegion, anotherCourse,
+    greeting, outing, indoorOnly,
+    spotsList, wantN,
+  };
+
+  intent.labels = buildLabels(intent);
+  return intent;
+}
+
+/** 화면에 표시할 의도 요약 배지 */
+function buildLabels(i) {
+  const labels = [];
+  if (i.region) labels.push(`지역 · ${i.region}`);
+  const mo = [];
+  if (i.mobility.includes("wheelchair")) mo.push("휠체어");
+  if (i.mobility.includes("walker")) mo.push("보행기");
+  if (i.mobility.includes("senior")) mo.push("노부모 동행");
+  if (i.mobility.includes("stroller")) mo.push("유모차");
+  if (mo.length) labels.push(`동행 · ${mo.join("·")}`);
+  if (i.themes.length) {
+    const names = { sea: "바다", park: "산책·공원", culture: "문화·전시", indoor: "실내" };
+    labels.push(`테마 · ${i.themes.map((t) => names[t]).join("·")}`);
+  }
+  if (i.rain) labels.push("우천 · 실내 중심");
+  if (i.duration) labels.push(`일정 · ${i.duration === "oneday" ? "하루" : "반나절"}`);
+  if (i.wantsFood || i.restaurantsOnly) labels.push("식사 · 맛집 포함");
+  return labels;
+}
+
+/** 지역 미지정 시 기본 지역 선택 */
+function defaultRegion(themes) {
+  if (themes.includes("indoor") || themes.includes("culture")) return "서울";
+  if (themes.includes("sea")) return "부산";
+  return "서울";
+}
+
+
+/* ====== js/tools.js ====== */
+/**
+ * tools.js — 에이전트 도구 계층 (Function Calling 대상 3종)
+ *
+ * 각 도구는 OpenAI 스타일 함수 정의(name/description/parameters)를 갖고,
+ * 호출 시 다음 순서로 동작한다.
+ *   1) 실시간 모드 + API 키가 있으면 공공데이터포털 실제 호출 시도 (LIVE_APIS)
+ *   2) 실패(키 없음·CORS·형식 불일치) 시 동일 스펙의 내장 샘플 데이터로 자동 폴백
+ *   3) 필터링 규칙(경사도 8% 이하, 출입구 턱 없음 등)을 적용하고
+ *      '제외 사유'까지 반환해 에이전트가 근거를 화면에 표시할 수 있게 한다.
+ */
+
+
+/* ---------------------- 도구 정의(스키마) ---------------------- */
+
+const TOOL_SPECS = [
+  {
+    name: "searchOpenTouristSpots",
+    label: "한국관광공사·열린관광지 정보 API",
+    icon: "🏛️",
+    description: "휠체어 대여, 장애인 화장실, 휠체어 진입 등 무장애 정보가 완비된 관광지를 검색한다.",
+    parameters: {
+      type: "object",
+      properties: {
+        region: { type: "string", description: "지역명 (전국 시·도: 부산/서울/제주/강원/인천/경남/경북 등)" },
+        themes: { type: "array", items: { type: "string" }, description: "테마 (sea/park/culture/indoor)" },
+        indoorOnly: { type: "boolean", description: "우천 시 실내·반실내 장소만" },
+      },
+      required: ["region"],
+    },
+  },
+  {
+    name: "searchAccessibleTrails",
+    label: "국립공원공단·지자체 무장애 탐방로(데크길) API",
+    icon: "🌲",
+    description: "최대 경사도 8% 이하의 완만한 산책로·데크길을 검색한다. 경사도 기준 초과 구간은 제외한다.",
+    parameters: {
+      type: "object",
+      properties: {
+        region: { type: "string", description: "지역명" },
+        themes: { type: "array", items: { type: "string" } },
+        maxSlope: { type: "number", description: "허용 최대 경사도(%)", default: 8 },
+      },
+      required: ["region"],
+    },
+  },
+  {
+    name: "searchStayHotels",
+    label: "한국관광공사·무장애 숙박(호텔) API",
+    icon: "🏨",
+    description: "1박 2일 코스용 — 휠체어 이용 가능한 숙소(호텔·리조트)를 검색한다.",
+    parameters: {
+      type: "object",
+      properties: {
+        region: { type: "string", description: "지역명" },
+      },
+      required: ["region"],
+    },
+  },
+  {
+    name: "searchStepFreeRestaurants",
+    label: "소상공인시장진흥공단·상권정보 API",
+    icon: "🍚",
+    description: "출입구 턱이 없는(step-free) 인근 식당을 검색한다. 턱이 있는 매장은 제외한다.",
+    parameters: {
+      type: "object",
+      properties: {
+        subAreas: { type: "array", items: { type: "string" }, description: "인근 상권(서브지역) 목록" },
+        region: { type: "string", description: "지역명" },
+      },
+      required: ["subAreas"],
+    },
+  },
+];
+
+/* ---------------------- 실시간 API 구성 ---------------------- */
+/**
+ * 공공데이터포털(data.go.kr) 실제 서비스 스펙 (2026-11 포털 End Point 확인):
+ *  ① 관광지   : 한국관광공사_[개발계정]무장애 여행 정보 — KorWithService2
+ *               areaBasedList2(지역별 무장애 콘텐츠) → 0건이면 searchKeyword2로 재시도,
+ *               상위 3곳은 detailIntro2로 무장애 상세(휠체어 대여·화장실 등)를 검증해 배지 부여
+ *  ② 탐방로   : data.go.kr에 국립공원공단 OpenAPI 미제공(파일데이터만 확인됨)
+ *               → 내장 데이터 사용 (대안: 행안부 생활안전지도 safemap API 별도 연동 가능)
+ *  ③ 식당     : 소상공인 상가(상권)정보 sdsc2 storeListInRadius
+ *               관광지 좌표(cx, cy) 반경 600m 상가업소 중 음식점 선별
+ *               ※ 상권 API에는 '출입구 턱' 정보가 없어, 라이브 결과는
+ *                  '현장 확인 필요' 배지로 표시한다(무단 추정 금지 원칙).
+ *  ④ 숙박     : 무장애여행 정보(KorWithService2)의 숙박 콘텐츠(contenttypeid=32)
+ *               1박 2일 코스 + 숙소 옵션에서만 호출. 관광지 도구와 같은 ① 키 사용.
+ *
+ * 호출은 CORS 제약 때문에 1) 브라우저 직접 호출 2) serve.mjs /proxy/openapi 3) JSONP 순으로 진행된다.
+ */
+/* TourAPI 표준 지역코드 (areaCodeList 기준) */
+const AREA_CODE = {
+  서울: "1", 인천: "2", 대전: "3", 대구: "4", 광주: "5", 부산: "6", 울산: "7", 세종: "8",
+  경기: "31", 강원: "32", 충북: "33", 충남: "34", 경북: "35", 경남: "36", 전북: "37", 전남: "38", 제주: "39",
+};
+
+const LIVE_APIS = {
+  searchOpenTouristSpots: {
+    url: "https://apis.data.go.kr/B551011/KorWithService2/areaBasedList2",
+    keywordless: true,
+    buildParams: (kw, args, key) => ({
+      serviceKey: key, numOfRows: "20", pageNo: "1",
+      MobileOS: "ETC", MobileApp: "OpenNatri",
+      areaCode: AREA_CODE[args.region] || "", _type: "json",
+    }),
+    map: (json, args) => {
+      const raw = itemsOf(json);
+      const region = args.region || "";
+      const inRegion = raw.filter((r) => regionIn(region, r.addr1));
+      const items = (inRegion.length ? inRegion : raw).map((r) => ({
+        contentid: r.contentid || "",
+        contenttypeid: r.contenttypeid || "",
+        title: r.title || "(제목 미상)",
+        addr1: r.addr1 || "",
+        areacode: r.areacode || "",
+        cat3name: "무장애여행 공공데이터",
+        kind: "outdoor", themes: [], subArea: (r.addr1 || "").split(" ")[1] || "",
+        emoji: "📍", barrier: {}, liveUnverified: true,
+        xswftm: r.mapx || "", yswftm: r.mapy || "",
+        usageHour: "", tip: "공공데이터 '무장애 여행 정보' 검색 결과예요. 상세 검증 후 배지를 갱신해요.",
+      }));
+      const note = items.length
+        ? `무장애여행 API 결과 ${items.length}곳${!inRegion.length && raw.length ? " (해당 지역 일치 없음 → 전국 결과)" : ""}`
+        : "";
+      return { items, note };
+    },
+    /* areaBasedList2가 0건일 때 키워드 검색으로 재시도 */
+    fallback: {
+      url: "https://apis.data.go.kr/B551011/KorWithService2/searchKeyword2",
+      keywords: ["무장애", "휠체어", "배리어프리"],
+      buildParams: (kw, args, key) => ({
+        serviceKey: key, numOfRows: "20", pageNo: "1",
+        MobileOS: "ETC", MobileApp: "OpenNatri",
+        keyword: kw, areaCode: AREA_CODE[args.region] || "", _type: "json",
+      }),
+    },
+  },
+  searchAccessibleTrails: {
+    url: "",
+    note: "국립공원·지자체 무장애 탐방로는 data.go.kr에 OpenAPI가 없음(파일데이터만 제공 확인) → 내장 데이터 사용",
+  },
+  /* 숙박: 무장애여행 정보 서비스의 숙박 콘텐츠(contenttypeid=32) — 관광지 도구와 같은 키 사용 */
+  searchStayHotels: {
+    url: "https://apis.data.go.kr/B551011/KorWithService2/areaBasedList2",
+    keywordless: true,
+    buildParams: (kw, args, key) => ({
+      serviceKey: key, numOfRows: "20", pageNo: "1",
+      MobileOS: "ETC", MobileApp: "OpenNatri",
+      areaCode: AREA_CODE[args.region] || "", contentTypeId: "32", _type: "json",
+    }),
+    map: (json, args) => {
+      const raw = itemsOf(json);
+      const region = args.region || "";
+      const inRegion = raw.filter((r) => regionIn(region, r.addr1));
+      const items = (inRegion.length ? inRegion : raw).map((r) => ({
+        contentid: r.contentid || "",
+        title: r.title || "(숙소 미상)",
+        addr1: r.addr1 || "",
+        cat3name: "무장애여행 숙박",
+        subArea: (r.addr1 || "").split(" ")[1] || "",
+        emoji: "🏨", barrier: {}, liveUnverified: true,
+        xswftm: r.mapx || "", yswftm: r.mapy || "",
+        roomInfo: "",
+        tip: "공공데이터 '무장애 여행 정보' 숙박 결과예요. 객실 폭·욕실 상세는 예약 전에 확인을 권해요.",
+      }));
+      const note = items.length
+        ? `무장애여행 숙박 API 결과 ${items.length}곳${!inRegion.length && raw.length ? " (지역 일치 없음 → 전국 결과)" : ""}`
+        : "";
+      return { items, note };
+    },
+    /* 0건이면 숙박 키워드로 재시도 */
+    fallback: {
+      url: "https://apis.data.go.kr/B551011/KorWithService2/searchKeyword2",
+      keywords: ["호텔", "리조트", "모텔", "숙박"],
+      buildParams: (kw, args, key) => ({
+        serviceKey: key, numOfRows: "20", pageNo: "1",
+        MobileOS: "ETC", MobileApp: "OpenNatri",
+        keyword: kw, areaCode: AREA_CODE[args.region] || "", contentTypeId: "32", _type: "json",
+      }),
+    },
+  },
+  searchStepFreeRestaurants: {
+    url: "https://apis.data.go.kr/B553077/api/open/sdsc2/storeListInRadius",
+    keywordless: true,
+    buildParams: (kw, args, key) => ({
+      serviceKey: key, numOfRows: "20", pageNo: "1",
+      radius: "600", cx: args.cx || "", cy: args.cy || "", type: "json",
+    }),
+    map: (json) => {
+      const FOOD = /음식|한식|중식|일식|양식|분식|치킨|피자|카페|베이커리|패스트푸드|식당|해물|횟집|술집|국밥|냉면|떡볶이/i;
+      const raw = itemsOf(json);
+      const food = raw.filter((r) =>
+        FOOD.test(String(r.indsLclsNm || "") + String(r.indsMclsNm || "") + String(r.indsSclsNm || "")));
+      const use = food.length ? food : raw;
+      const items = use.slice(0, 12).map((r) => ({
+        bizesId: r.bizesId || "",
+        bizesNm: r.bizesNm || "(상호 미상)",
+        indsLclsNm: "음식", indsMclsNm: r.indsMclsNm || "", indsSclsNm: r.indsSclsNm || r.indsMclsNm || "음식점",
+        rdnmAdr: r.rdnmAdr || "",
+        subAreas: [], xswftm: r.lon || "", yswftm: r.lat || "",
+        access: { stepFree: null, memo: "" }, liveUnverified: true,
+        tip: "상권정보에는 출입구 턱 정보가 없어요. 예약 시 '입구 단차' 전화 확인을 권해요.",
+      }));
+      return { items, note: items.length ? `반경 내 상가업소 중 음식점 ${items.length}건 선별 (턱 정보 미제공 → 현장 확인 배지)` : "" };
+    },
+  },
+};
+
+/** 공공API 응답에서 item 배열 추출 (1건일 때 객체로 오는 경우까지 방어) */
+function itemsOf(json) {
+  const it = json?.response?.body?.items?.item
+    ?? json?.body?.items
+    ?? json?.items
+    ?? [];
+  if (Array.isArray(it)) return it;
+  return it ? [it] : [];
+}
+
+/** JSON·XML 양쪽 방어 파서. 성공 시 {json, count}, 실패 시 {error:{code,msg}} */
+function parseOpenApi(text) {
+  try {
+    const json = JSON.parse(text);
+    const head = json?.response?.header || json?.header || {};
+    const msg = head.resultMsg || head.resultmessage || "";
+    /* sdsc2 등 상위 플랫 구조 오류 (resultCode 00=성공) */
+    if (json?.resultCode && json.resultCode !== "00" && json.resultCode !== "0000") {
+      return { error: { code: json.resultCode, msg: json?.resultMsg || "호출 오류" } };
+    }
+    if (msg && msg !== "OK" && msg !== "NORMAL_SERVICE") {
+      return { error: { code: head.resultCode || "-", msg } };
+    }
+    if (json?.OpenAPI_ServiceResponse) {
+      const h = json.OpenAPI_ServiceResponse.cmmMsgHeader || {};
+      return { error: { code: h.returnReasonCode || "-", msg: h.returnAuthMsg || h.errMsg || "호출 실패" } };
+    }
+    const count = json?.response?.body?.totalCount ?? json?.body?.totalCount ?? json?.body?.list_total_count ?? null;
+    return { json, count };
+  } catch (_) {
+    if (text.includes("OpenAPI_ServiceResponse")) {
+      const code = (text.match(/<returnReasonCode>([^<]+)<\/returnReasonCode>/) || [])[1] || "-";
+      const msg = (text.match(/<returnAuthMsg>([^<]+)<\/returnAuthMsg>/) || [])[1]
+        || (text.match(/<errMsg>([^<]+)<\/errMsg>/) || [])[1] || "호출 실패";
+      return { error: { code, msg } };
+    }
+    return { json: null, count: null };
+  }
+}
+
+/* ---------------------- 실시간 호출 시도 ---------------------- */
+
+/**
+ * 공공데이터포털 호출 경로 (순차 폴백):
+ *  1) 브라우저 직접 호출 — data.go.kr는 CORS를 허용(Origin 반영)하므로
+ *     localhost·터널 어디서든 동작. 호출 IP가 사용자 브라우저라 게이트웨이 응답도 정상.
+ *  2) /proxy/openapi — serve.mjs로 서빙될 때만 존재하는 서버 프록시 (직접 호출 실패 시)
+ *  3) JSONP — TourAPI(KorWithService2)는 callback 파라미터를 공식 지원하므로
+ *     CORS·네트워크 제약을 스크립트 태그로 우회 (직접·프록시 모두 실패 시)
+ * 반환: { text, via } — via는 어떤 경로로 받았는지(표시용)
+ */
+async function fetchPublicApi(path, searchParams) {
+  try {
+    const res = await fetch(`https://apis.data.go.kr/${path}?${searchParams.toString()}`,
+      { signal: AbortSignal.timeout(9000) });
+    return { text: await decodeBody(await res.arrayBuffer()), via: "브라우저 직접 호출" };
+  } catch (_) { /* 직접 호출 실패(CORS/네트워크) → 다음 경로 */ }
+
+  try {
+    const res2 = await fetch(`/proxy/openapi?path=${encodeURIComponent(path)}&${searchParams.toString()}`,
+      { signal: AbortSignal.timeout(9000) });
+    if (!res2.ok && !String(res2.status).startsWith("4")) throw new Error(`프록시 HTTP ${res2.status}`);
+    return { text: await decodeBody(await res2.arrayBuffer()), via: "프록시 경유" };
+  } catch (_) { /* 프록시 없음(터널·file://) → JSONP 시도 */ }
+
+  if (!path.startsWith("B551011/")) throw new Error("직접 호출·프록시 모두 실패");
+  return { text: await fetchJsonp(`https://apis.data.go.kr/${path}?${searchParams.toString()}`), via: "JSONP" };
+}
+
+/**
+ * 공공 API는 charset 헤더 없이 EUC-KR로 응답하는 경우가 있다.
+ * UTF-8 디코딩에 U+FFFD(깨진 문자)가 섞이면 EUC-KR로 재디코딩한다.
+ */
+async function decodeBody(buf) {
+  const utf8 = new TextDecoder("utf-8").decode(buf);
+  if (!utf8.includes("\uFFFD")) return utf8;
+  try { return new TextDecoder("euc-kr").decode(buf); } catch (_) { return utf8; }
+}
+
+function fetchJsonp(url, timeout = 9000) {
+  return new Promise((resolve, reject) => {
+    const cb = "__opennatri_cb_" + Math.random().toString(36).slice(2);
+    const script = document.createElement("script");
+    const timer = setTimeout(() => { cleanup(); reject(new Error("JSONP 시간 초과")); }, timeout);
+    function cleanup() { clearTimeout(timer); delete window[cb]; script.remove(); }
+    window[cb] = (data) => { cleanup(); resolve(JSON.stringify(data)); };
+    script.src = `${url}&callback=${cb}`;
+    script.onerror = () => { cleanup(); reject(new Error("JSONP 로드 실패")); };
+    document.head.appendChild(script);
+  });
+}
+
+async function tryLive(spec, args, settings) {
+  if (!settings?.useLive) return null;
+  /* 숙박 도구는 관광지 도구와 같은 TourAPI 키를 사용 (설정 모달의 ① 키) */
+  const key = (settings.keys?.[spec.name]
+    || (spec.name === "searchStayHotels" ? settings.keys?.searchOpenTouristSpots : "")
+    || "").trim();
+  if (!key) return null;
+  const conf = LIVE_APIS[spec.name];
+  if (!conf?.url) return { ok: false, note: conf?.note || "라이브 엔드포인트 미설정 → 내장 데이터 전환" };
+
+  /* 키워드 후보: keywordless 도구는 인자(cx/cy 등)만으로 호출 */
+  const kwPool = conf.keywordless ? [null]
+    : [...(args.subAreas || []), args.region].filter(Boolean);
+  const path = conf.url.replace("https://apis.data.go.kr/", "");
+
+  for (const kw of kwPool) {
+    const params = conf.buildParams(kw, args, key);
+    const relay = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) if (v !== "") relay.append(k, v);
+    try {
+      const { text, via } = await fetchPublicApi(path, relay);
+      const parsed = parseOpenApi(text);
+      if (parsed.error) {
+        return { ok: false, note: `공공API 오류 [${parsed.error.code}] ${parsed.error.msg} → 내장 데이터 전환` };
+      }
+      const mapped = conf.map(parsed.json, args) || { items: [] };
+      if (mapped.items.length) {
+        return { ok: true, items: mapped.items, excluded: [], note: `${mapped.note || `실시간 공공데이터 ${mapped.items.length}건`} (${via})` };
+      }
+      /* 0건이면 다음 키워드로 재시도 */
+    } catch (e) {
+      const reason = e.name === "TimeoutError" || e.name === "AbortError" ? "시간 초과" : (e.message || "호출 실패");
+      return { ok: false, note: `실시간 호출 실패(${reason}) → 내장 데이터 전환` };
+    }
+  }
+
+  /* 0건이면 fallback(예: areaBasedList2 → searchKeyword2)으로 재시도 */
+  if (conf.fallback) {
+    const fpath = conf.fallback.url.replace("https://apis.data.go.kr/", "");
+    for (const kw of conf.fallback.keywords) {
+      const relay = new URLSearchParams();
+      for (const [k, v] of Object.entries(conf.fallback.buildParams(kw, args, key))) if (v !== "") relay.append(k, v);
+      try {
+        const { text } = await fetchPublicApi(fpath, relay);
+        const parsed = parseOpenApi(text);
+        if (parsed.error) return { ok: false, note: `공공API 오류 [${parsed.error.code}] ${parsed.error.msg} → 내장 데이터 전환` };
+        const mapped = conf.map(parsed.json, args) || { items: [] };
+        if (mapped.items.length) {
+          return { ok: true, items: mapped.items, excluded: [], note: `${mapped.note || `실시간 공공데이터 ${mapped.items.length}건`} (키워드 재검색)` };
+        }
+      } catch (_) { break; /* 폴백 실패 시 내장 데이터로 */ }
+    }
+  }
+  return { ok: false, note: `실시간 검색 0건 → 내장 데이터 전환` };
+}
+
+/**
+ * 무장애여행 상세(detailIntro2)로 상위 관광지의 무장애 시설을 검증해 배지를 갱신한다.
+ * 상세 필드가 제공되면 liveUnverified를 해제(실배지), 아니면 미검증 배지 유지.
+ */
+async function enrichTourist(items, settings) {
+  const key = (settings?.keys?.searchOpenTouristSpots || "").trim();
+  if (!key) return;
+  for (const it of items.slice(0, 3)) {
+    if (!it.contentid || !it.contenttypeid) continue;
+    try {
+      const relay = new URLSearchParams({
+        serviceKey: key, numOfRows: "1", pageNo: "1",
+        MobileOS: "ETC", MobileApp: "OpenNatri",
+        contentId: it.contentid, contentTypeId: it.contenttypeid, _type: "json",
+      });
+      const { text } = await fetchPublicApi("B551011/KorWithService2/detailIntro2", relay);
+      const parsed = parseOpenApi(text);
+      const raw = itemsOf(parsed.json ?? {})[0];
+      if (!raw) continue;
+      const barrier = {};
+      for (const [k, v] of Object.entries(raw)) {
+        if (!/^(Y|있음|가능|무료|유)/i.test(String(v))) continue;
+        if (/wheelchairrental/i.test(k)) barrier.rental = "Y";
+        else if (/(disabled|wheelchair|barrier).*toilet|toilet.*(disabled|wheelchair)/i.test(k)) barrier.toilet = "Y";
+        else if (/wheelchairenter|entryroute/i.test(k)) barrier.enterable = "Y";
+        else if (/elevator/i.test(k)) barrier.elevator = "Y";
+        else if (/parking/i.test(k) && /(disab|wheelchair|barrier)/i.test(k)) barrier.parking = "Y";
+      }
+      if (Object.keys(barrier).length) {
+        it.barrier = barrier;
+        it.liveUnverified = false;
+        it.cat3name = "무장애여행 상세정보 기준";
+        if (raw.wheelchairrental && raw.wheelchairrental !== "Y") it.rentalInfo = String(raw.wheelchairrental);
+        if (raw.usetime && String(raw.usetime).trim()) it.usageHour = String(raw.usetime).trim();
+        it.tip = "공공데이터 '무장애 여행 정보' 상세 기준이에요. 최신 운영 상태는 방문 전 확인을 권해요.";
+      }
+    } catch (_) { /* 상세 조회 실패 시 미검증 배지 유지 */ }
+  }
+}
+
+const DEFAULT_SETTINGS = {
+  useLive: false,
+  keys: {
+    searchOpenTouristSpots: "",
+    searchAccessibleTrails: "",
+    searchStepFreeRestaurants: "",
+    searchStayHotels: "",
+    mapKakao: "",
+  },
+};
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/* ---------------------- 샘플 필터 로직 ---------------------- */
+
+function badgeCount(spot) {
+  return Object.values(spot.barrier || {}).filter((v) => v === "Y").length;
+}
+
+/** 지역명 매칭: "경남"↔"경상남도", "충북"↔"충청북도", "전남"↔"전라남도" 등 약칭/정식명 호환 */
+function regionIn(region, text) {
+  const t = text || "";
+  const alt = {
+    경남: "경상남", 경북: "경상북", 충남: "충청남", 충북: "충청북", 전남: "전라남", 전북: "전라북",
+  }[region];
+  return t.includes(region) || (!!alt && t.includes(alt));
+}
+
+function filterSpots(args) {
+  const region = args.region || "부산";
+  let items = TOURIST_SPOTS.filter((s) => regionIn(region, s.addr1));
+  let regionNote = null;
+  if (!items.length) {
+    /* 샘플 데이터에 없는 지역 → 전국 샘플로 대체 (근거를 노트로 표시) */
+    regionNote = `내장 샘플에 "${region}"이(가) 없어 전국 샘플로 대체`;
+    items = TOURIST_SPOTS.slice();
+  }
+  items = items.map((s) => ({ ...s, _region: region }));
+  const excluded = [];
+
+  const wantIndoor = !!args.indoorOnly;
+  const themes = args.themes || [];
+
+  if (wantIndoor) {
+    const indoor = items.filter((s) => s.kind === "indoor" || s.kind === "mixed");
+    excluded.push(...items.filter((s) => s.kind === "outdoor").map((s) => `${s.title}(야외)`));
+    items = indoor;
+  }
+  if (themes.length) {
+    /* 테마 매칭이 충분하면 좁히고, 부족하면 지역 전체에서 배지 많은 순으로 완화 */
+    const matched = items.filter((s) =>
+      s.themes.some((t) => themes.includes(t)) || (wantIndoor && s.kind === "mixed"));
+    if (matched.length >= 2) items = matched;
+    else {
+      const rest = items.filter((s) => !matched.includes(s));
+      items = [...matched, ...rest];
+    }
+  }
+
+  /* 순위: 무장애 배지 개수 + 테마 적합도(휠체어 대여·야외 가중, 우천 아닐 때 실내 감점) */
+  const spotScore = (s) => {
+    const bc = badgeCount(s);
+    const tm = themes.filter((t) => s.themes?.includes(t)).length;
+    let score = bc + tm * 2;
+    if (s.barrier?.rental === "Y") score += 1;
+    if (wantIndoor && (s.kind === "indoor" || s.kind === "mixed")) score += 1;
+    if (!wantIndoor && s.kind === "outdoor") score += 0.6;
+    if (!wantIndoor && s.kind === "indoor") score -= 0.8;
+    return score;
+  };
+  items.sort((a, b) => spotScore(b) - spotScore(a));
+  return { items, excluded, regionNote };
+}
+
+function filterTrails(args) {
+  const region = args.region || "부산";
+  const maxSlope = typeof args.maxSlope === "number" ? args.maxSlope : 8;
+  let inRegion = TRAILS.filter((t) => regionIn(region, t.agency));
+  let regionNote = null;
+  if (!inRegion.length) {
+    regionNote = `내장 샘플에 "${region}"이(가) 없어 전국 샘플로 대체`;
+    inRegion = TRAILS.slice();
+  }
+  const ok = [];
+  const excluded = [];
+  for (const t of inRegion) {
+    if (t.maxSlope <= maxSlope) ok.push(t);
+    else excluded.push(`${t.trailName}(경사도 ${t.maxSlope}%)`);
+  }
+  const themes = args.themes || [];
+  let items = ok;
+  if (themes.length) {
+    const matched = items.filter((t) => t.themes.some((x) => themes.includes(x)));
+    if (matched.length >= 2) items = matched;
+    else {
+      const rest = items.filter((t) => !matched.includes(t));
+      items = [...matched, ...rest];
+    }
+  }
+  items.sort((a, b) => a.maxSlope - b.maxSlope);
+  return { items, excluded, regionNote };
+}
+
+function filterRestaurants(args) {
+  const subAreas = args.subAreas && args.subAreas.length ? args.subAreas : [];
+  const region = args.region || "부산";
+  let pool = RESTAURANTS.filter((r) => regionIn(region, r.rdnmAdr));
+  let regionNote = null;
+  if (!pool.length) {
+    regionNote = `내장 샘플에 "${region}"이(가) 없어 전국 샘플로 대체`;
+    pool = RESTAURANTS.slice();
+  }
+  const excluded = [];
+  const near = pool.filter((r) => r.subAreas.some((s) => subAreas.includes(s)));
+  if (near.length) pool = near;
+
+  const ok = [];
+  for (const r of pool) {
+    if (r.access.stepFree) ok.push(r);
+    else excluded.push(`${r.bizesNm}(출입구 턱 있음)`);
+  }
+  ok.sort((a, b) => (b.access.toilet ? 1 : 0) - (a.access.toilet ? 1 : 0));
+  return { items: ok, excluded, regionNote };
+}
+
+function filterHotels(args) {
+  const region = args.region || "부산";
+  let items = HOTELS.filter((ht) => regionIn(region, ht.addr1));
+  let regionNote = null;
+  if (!items.length) {
+    /* 숙소 샘플이 없는 지역 → 전국 샘플로 대체 (근거를 노트로 표시) */
+    regionNote = `내장 샘플에 "${region}" 숙소가 없어 전국 샘플로 대체`;
+    items = HOTELS.slice();
+  }
+  items = items.slice().sort((a, b) => badgeCount(b) - badgeCount(a));
+  return { items, excluded: [], regionNote };
+}
+
+/* ---------------------- 실측 스냅샷 (선택 계층) ---------------------- */
+/**
+ * 실측 데이터 스냅샷: capture-snapshot.mjs가 본인 PC에서 캡처한 실제 API 응답.
+ * js/snapshot.js(window.__SNAPSHOT__)가 있으면 'live 실패 시 → 실측 → 샘플' 순으로 사용.
+ * 스냅샷 파일에는 인증키가 포함되지 않는다(보안).
+ */
+let SNAP_CACHE, SNAP_TRIED = false;
+async function getSnapshot() {
+  if (SNAP_TRIED) return SNAP_CACHE;
+  SNAP_TRIED = true;
+  try { if (typeof window !== "undefined" && window.__SNAPSHOT__) { SNAP_CACHE = window.__SNAPSHOT__; return SNAP_CACHE; } } catch (_) {}
+  try { await import("./snapshot.js"); } catch (_) {}
+  try { if (typeof window !== "undefined" && window.__SNAPSHOT__) SNAP_CACHE = window.__SNAPSHOT__; } catch (_) {}
+  return SNAP_CACHE;
+}
+
+function snapshotItems(name, args, snap) {
+  const region = args.region || "부산";
+  if (name === "searchOpenTouristSpots") {
+    const list = snap.tourist?.[region]?.length ? snap.tourist[region] : Object.values(snap.tourist || {}).flat();
+    const items = list.map((s) => ({
+      contentid: s.contentid || "", contenttypeid: s.contenttypeid || "",
+      title: s.title || "(제목 미상)", addr1: s.addr1 || "",
+      areacode: "", cat3name: "무장애여행 실측 데이터",
+      kind: "outdoor", themes: [], subArea: (s.addr1 || "").split(" ")[1] || "",
+      emoji: "📍", barrier: s.barrier || {}, liveUnverified: !s.barrierFound,
+      xswftm: s.mapx || "", yswftm: s.mapy || "",
+      usageHour: "",
+      tip: s.barrierFound
+        ? "공공데이터 '무장애 여행 정보' 상세 기준이에요. 최신 운영 상태는 방문 전 확인을 권해요."
+        : "실측 데이터 기준이며 무장애 상세는 미수집이에요. 방문 전 전화 확인을 권해요.",
+    }));
+    return { items, excluded: [] };
+  }
+  if (name === "searchStepFreeRestaurants") {
+    const list = snap.restaurants?.[region]?.length ? snap.restaurants[region] : Object.values(snap.restaurants || {}).flat();
+    const items = list.map((r) => ({
+      bizesId: r.bizesId || "", bizesNm: r.bizesNm || "(상호 미상)",
+      indsLclsNm: "음식", indsMclsNm: r.indsMclsNm || "", indsSclsNm: r.indsSclsNm || r.indsMclsNm || "음식점",
+      rdnmAdr: r.rdnmAdr || "", subAreas: [], xswftm: r.lon || "", yswftm: r.lat || "",
+      access: { stepFree: null, memo: "" }, liveUnverified: true,
+      tip: "상권정보에는 출입구 턱 정보가 없어요. 예약 시 '입구 단차' 전화 확인을 권해요.",
+    }));
+    return { items, excluded: [] };
+  }
+  return null;
+}
+
+/* ---------------------- 공용 진입점 ---------------------- */
+
+/**
+ * 실시간 관광지 결과 + 내장 검증 데이터 병합 — 무장애 검증된 곳 우선.
+ * 순서: ① 상세 검증된 실시간 결과 ② 내장 검증 데이터 ③ 미검증 실시간 결과.
+ * 나들이 대상 외 종목(음식점 39·숙박 32·쇼핑 38·행사 15)은 관광지 풀에서 제외.
+ */
+function mergeSpotPools(liveItems, sampleResult) {
+  const SPOT_TYPES = new Set(["12", "14", "25", "28"]);
+  const live = (liveItems || []).filter((it) => SPOT_TYPES.has(String(it.contenttypeid || "")));
+  const verifiedLive = live.filter((it) => !it.liveUnverified);
+  const unverifiedLive = live.filter((it) => it.liveUnverified);
+  const sample = sampleResult?.items || [];
+  const seen = new Set();
+  const merged = [];
+  for (const s of [...verifiedLive, ...sample, ...unverifiedLive]) {
+    const key = (s.title || "").replace(/\s+/g, "");
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    merged.push(s);
+  }
+  return merged;
+}
+
+/**
+ * 도구 실행. 반환값:
+ * { tool, args, source: "sample"|"live", items, excluded, note }
+ */
+async function callTool(name, args, settings = DEFAULT_SETTINGS) {
+  const spec = TOOL_SPECS.find((t) => t.name === name);
+  if (!spec) throw new Error(`알 수 없는 도구: ${name}`);
+
+  await sleep(550 + Math.random() * 450); // 도구 호출 지연(시각화용)
+  const live = await tryLive(spec, args, settings);
+
+  /* 실시간 성공: 공공데이터 결과를 그대로 사용. 관광지는 상세 검증(배지 갱신) + 검증 데이터 병합 후 반환 */
+  if (live?.ok) {
+    let items = live.items;
+    let note = live.note;
+    if (name === "searchOpenTouristSpots") {
+      await enrichTourist(items, settings);
+      items = mergeSpotPools(items, filterSpots(args));
+      note = `${note} · 무장애 검증 내장 데이터 병합 (검증 곳 우선)`;
+    }
+    return { tool: spec, args, source: "live", liveNote: note, items, excluded: [] };
+  }
+
+  /* 실시간 실패 시 실측 스냅샷(실제 API 응답 캡처본) 사용 — 인증키 불필요 */
+  const snap = await getSnapshot();
+  if (snap) {
+    const s = snapshotItems(name, args, snap);
+    if (s?.items?.length) {
+      return {
+        tool: spec, args, source: "snapshot",
+        liveNote: `실측 데이터 스냅샷 — 실제 API 응답 캡처본 사용 (수집: ${snap.capturedAt || "날짜 미상"})`,
+        items: s.items, excluded: [],
+      };
+    }
+  }
+
+  let filtered;
+  if (name === "searchOpenTouristSpots") filtered = filterSpots(args);
+  else if (name === "searchAccessibleTrails") filtered = filterTrails(args);
+  else if (name === "searchStayHotels") filtered = filterHotels(args);
+  else filtered = filterRestaurants(args);
+
+  /* 라이브 실패 사유 + 샘플 대체 사유를 한 줄로 합쳐 노트 표시 */
+  const note = [live?.note, filtered.regionNote].filter(Boolean).join(" · ") || null;
+
+  return {
+    tool: spec,
+    args,
+    source: "sample",
+    liveNote: note,
+    items: filtered.items,
+    excluded: filtered.excluded,
+  };
+}
+
+/** 설정 저장소(localStorage) */
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem("opennatri.settings.v1");
+    if (raw) return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+  } catch (_) { /* 저장소 미사용 환경 */ }
+  return { ...DEFAULT_SETTINGS };
+}
+
+function saveSettings(s) {
+  try { localStorage.setItem("opennatri.settings.v1", JSON.stringify(s)); } catch (_) {}
+}
+
+
+/* ====== js/agent.js ====== */
+/**
+ * agent.js — 오픈나들이 AI 에이전트 파이프라인
+ *
+ * 동작 구조 (Function Calling 파이프라인):
+ *
+ *   사용자 발화
+ *      │
+ *      ├─ 1. 의도 분석 (nlu.parseIntent)  → 지역/테마/동행/우천/일정 파라미터화
+ *      ├─ 2. 도구 조합 계획               → 3개 도구 호출 순서 확정
+ *      ├─ 3. 도구 자율 호출 (tools.callTool)
+ *      │      ① searchOpenTouristSpots     (한국관광공사 열린관광지)
+ *      │      ② searchAccessibleTrails     (무장애 탐방로·데크길, 경사도 ≤8%)
+ *      │      ③ searchStepFreeRestaurants  (상권정보, 출입구 턱 없음)
+ *      │      ※ ③은 ①②의 결과(인근 상권)를 인자로 사용 — 도구 체이닝
+ *      ├─ 4. 검증·필터링                  → 제외 사유를 근거로 반환
+ *      └─ 5. 코스 조립·응답 생성          → 카드/배지/팁/초대장/후속 질문
+ *
+ * 각 단계는 핸들러(h)로 이벤트를 내보내 UI에서 실시간 스트리밍된다.
+ */
+
+
+
+
+class OutingAgent {
+  constructor(settings) {
+    this.settings = settings || {};
+    this.lastIntent = null;   // 후속 질문("다른 코스" 등)에 재사용
+    this.variants = {};       // 지역별 코스 변형 카운터
+    this.regionIdx = 0;
+  }
+
+  setSettings(s) { this.settings = s; }
+
+  /** 첫 화면 환영 답변 */
+  welcome() { return greetingAnswer(); }
+
+  /** 헤더 데이터 소스 배지 표시용 */
+  sourceLabel() {
+    const hasKey = Object.values(this.settings?.keys || {}).some((k) => k && k.trim());
+    return this.settings?.useLive && hasKey ? "실시간 API 시도 · 내장 폴백" : "내장 샘플 데이터";
+  }
+
+  /**
+   * 사용자 발화 처리
+   * @param {string} text
+   * @param {object} h 이벤트 핸들러 { onStatus, onStatusDone, onTool, onToolDone, onAnswer, onNote }
+   * @param {object} [extras] UI 컨트롤 값 — { timeRange: { s, e } } (시간대 슬라이더, 단위: 시 8~20)
+   */
+  async handle(text, h, extras) {
+    const intent = parseIntent(text);
+
+    /* 인사·안내 요청 */
+    if (intent.greeting) { h.onAnswer(greetingAnswer()); return; }
+
+    /* 코스 요청 판단: 힌트가 전혀 없으면 안내 응답 */
+    const hasHint = intent.region || intent.themes.length || intent.mobility.length ||
+      intent.restaurantsOnly || intent.anotherCourse || intent.outing || (intent.text || "").length >= 8;
+    if (!hasHint) { h.onAnswer(greetingAnswer()); return; }
+
+    /* ---------- 1단계: 의도 분석 ---------- */
+    const step0 = h.onStatus({ icon: "🧠", title: "요청 분석 중…", labels: intent.labels });
+    await sleep(500);
+
+    /* 지역 결정(후속 질문 맥락 유지) */
+    let region = intent.region;
+    if (intent.nextRegion) {
+      this.regionIdx = (this.regionIdx + 1) % REGIONS.length;
+      region = REGIONS[this.regionIdx];
+    }
+    if (!region) region = this.lastIntent?.region || null;
+    if (!region) region = defaultRegion(intent.themes);
+    this.regionIdx = Math.max(0, REGIONS.indexOf(region));
+
+    if (intent.anotherCourse) this.variants[region] = (this.variants[region] || 0) + 1;
+    const variant = this.variants[region] || 0;
+
+    /* ---------- 일정·시간대 설정(아코디언) → 유연한 스케줄 ---------- */
+    const sched = normalizeSchedule(extras?.schedule);
+    /* 활동 배치 선호: 실내·문화는 관광지 고정, 산책·바다·공원은 탐방로 교차 */
+    const pref = {
+      trailOk: !intent.indoorOnly && !(intent.themes.length === 1 && intent.themes[0] === "culture"),
+    };
+    const scheduleEvents = buildSchedule(sched, pref);
+
+    const ctx = { ...intent, region, variant, schedule: { ...sched, events: scheduleEvents } };
+
+    /* 여행지 N곳 목록 모드: "여행지 3개 추천" — 코스가 아닌 관광지 목록으로 응답 */
+    const listMode = !ctx.restaurantsOnly && !!intent.spotsList && (intent.wantN || 0) >= 2;
+    if (listMode) ctx.labels.push(`형식 · 여행지 ${intent.wantN}곳 목록`);
+    ctx.listMode = listMode;
+    this.lastIntent = ctx;
+
+    /* 옵션·일정 라벨 */
+    if (!listMode && !ctx.restaurantsOnly) {
+      if (!intent.labels.some((l) => l.startsWith("일정 ·"))) {
+        intent.labels.push(`일정 · ${sched.tripType === "overnight" ? "1박 2일" : "당일"}`);
+      }
+      if (sched.meal && !intent.labels.some((l) => l.includes("식사") || l.includes("식당"))) intent.labels.push("식사 포함");
+      if (sched.cafe) intent.labels.push("카페 포함");
+    }
+    const needSpots = scheduleEvents.some((ev) => ev.kind === "act" && ev.act === "spot");
+    const needTrails = scheduleEvents.some((ev) => ev.kind === "act" && ev.act === "trail");
+    const needRests = scheduleEvents.some((ev) => ev.kind === "lunch" || ev.kind === "cafe" || ev.kind === "dinner");
+    const needHotels = sched.tripType === "overnight" && sched.hotel && scheduleEvents.some((ev) => ev.kind === "hotel");
+    if (needHotels) intent.labels.push("숙소 추천 포함");
+
+    /* 도구 조합: 일정 이벤트에 필요한 도구만 동적으로 호출 */
+    const toolNames = listMode
+      ? ["searchOpenTouristSpots"]
+      : ctx.restaurantsOnly
+        ? ["searchStepFreeRestaurants"]
+        : [
+            ...(needSpots ? ["searchOpenTouristSpots"] : []),
+            ...(needTrails ? ["searchAccessibleTrails"] : []),
+            ...(needRests ? ["searchStepFreeRestaurants"] : []),
+            ...(needHotels ? ["searchStayHotels"] : []),
+          ];
+    if (!toolNames.length) toolNames.push("searchOpenTouristSpots"); /* 안전망 */
+    const d1 = sched.d1, d2 = sched.d2;
+    const schedLabel = listMode
+      ? `여행지 ${intent.wantN}곳 목록`
+      : `${sched.tripType === "overnight" ? "1박 2일" : "당일"} ${hh(d1.s)}~${hh(d1.e)}${sched.tripType === "overnight" ? ` / ${hh(d2.s)}~${hh(d2.e)}` : ""}`;
+    h.onStatusDone(step0, `분석 완료 → 지역 "${region}" · ${schedLabel} · 도구 ${toolNames.length}개`);
+
+    /* ---------- 2단계: 도구 조합 계획 ---------- */
+    const planStep = h.onStatus({
+      icon: "🗂️",
+      title: "도구 조합 계획 수립",
+      detail: toolNames.map((n, i) => `${i + 1}. ${TOOL_SPECS.find((t) => t.name === n).label}`).join("  →  "),
+    });
+    await sleep(450);
+    const SHORT_TOOL = {
+      searchOpenTouristSpots: "관광지",
+      searchAccessibleTrails: "탐방로",
+      searchStepFreeRestaurants: "인근 식당(연계)",
+    };
+    h.onStatusDone(planStep, `호출 순서 확정: ${toolNames.map((n) => SHORT_TOOL[n]).join(" → ")}`);
+
+    /* ---------- 3단계: 도구 자율 호출 (활동 먼저 → 체이닝으로 식당) ---------- */
+    const results = {};
+
+    if (ctx.indoorOnly && !toolNames.includes("searchAccessibleTrails")) {
+      h.onNote("우천·실내 판단 → 데크길 산책 대신 실내·반실내 동선으로 구성");
+    }
+
+    /* ① 열린관광지 */
+    if (toolNames.includes("searchOpenTouristSpots")) {
+      const args = { region, themes: ctx.themes, indoorOnly: ctx.indoorOnly };
+      results.spots = await this.#runTool(h, "searchOpenTouristSpots", args);
+
+      if (ctx.indoorOnly && results.spots.items.length) {
+        h.onNote(`우천·실내 조건 적용 → 실내·반실내 ${results.spots.items.length}곳만 통과`);
+      }
+    }
+
+    /* ② 무장애 탐방로 (경사도 8% 이하) */
+    if (toolNames.includes("searchAccessibleTrails")) {
+      const args = { region, themes: ctx.themes, maxSlope: 8 };
+      results.trails = await this.#runTool(h, "searchAccessibleTrails", args);
+
+      const ex = results.trails.excluded;
+      if (results.trails.source === "sample") {
+        h.onNote(ex.length
+          ? `경사도 8% 이하 필터링 → 제외: ${ex.join(", ")}`
+          : "경사도 8% 이하 필터링 → 전 구간 통과");
+      }
+    }
+
+    /* ④ 무장애 숙소 (1박 2일 + 숙소 옵션) */
+    if (toolNames.includes("searchStayHotels")) {
+      results.hotels = await this.#runTool(h, "searchStayHotels", { region });
+    }
+
+    /* 일정 이벤트에 활동 배정 (관광지·산책로 → 좌표 확정) */
+    this.#assignActPicks(ctx, results, h);
+
+    /* ③ 상권정보 식당 (선택된 활동의 좌표를 인자로 사용 — 도구 체이닝) */
+    if (toolNames.includes("searchStepFreeRestaurants")) {
+      const firstAct = ctx.schedule.events.find((ev) => ev.kind === "act" && ev.pick);
+      const cc = REGION_CENTER[region] || {};
+      const actSubs = ctx.schedule.events
+        .filter((ev) => ev.kind === "act" && ev.pick)
+        .map((ev) => ev.pick.subArea)
+        .filter(Boolean);
+      const args = {
+        region,
+        cx: firstAct?.pick?.xswftm || firstAct?.pick?.mapx || cc.x || "",
+        cy: firstAct?.pick?.yswftm || firstAct?.pick?.mapy || cc.y || "",
+        subAreas: actSubs.length ? actSubs : [REGION_MAIN_SUBAREA[region]].filter(Boolean),
+      };
+      results.rests = await this.#runTool(h, "searchStepFreeRestaurants", args);
+
+      const ex = results.rests.excluded;
+      if (results.rests.source === "sample") {
+        h.onNote(ex.length
+          ? `턱 없는 출입구 필터 → 제외: ${ex.join(", ")}`
+          : "턱 없는 출입구 필터 → 전 매장 통과");
+      } else if (results.rests.liveNote) {
+        h.onNote(results.rests.liveNote);
+      }
+    }
+
+    /* 식사·카페·숙소 이벤트에 후보 배정 */
+    this.#assignRestPicks(ctx, results, h);
+
+    /* ---------- 4~5단계: 검증·코스 조립·응답 ---------- */
+    /* 여행지 목록 모드: 코스 조립 없이 관광지 N곳 목록으로 응답 */
+    if (ctx.listMode) {
+      const buildStep = h.onStatus({
+        icon: "📋",
+        title: "여행지 목록 조립 중…",
+        detail: "무장애 배지 많은 순 정렬 → 상위 N곳 선별",
+      });
+      await sleep(500);
+      const answer = this.#spotsListAnswer(ctx, results);
+      h.onStatusDone(buildStep, `여행지 ${answer.cards.length}곳 목록 완성`);
+      await sleep(250);
+      h.onAnswer(answer);
+      return;
+    }
+    const buildStep = h.onStatus({ icon: "✅", title: "코스 조립·안심 검증 중…", detail: "동선 순서 정렬 → 배지 부여 → 초대장 생성" });
+    await sleep(600);
+    const answer = this.#assembleAnswer(ctx, results);
+    h.onStatusDone(buildStep, `검증 완료 · 코스 ${answer.cards.length}곳 구성`);
+    await sleep(250);
+    h.onAnswer(answer);
+  }
+
+  /** 도구 1회 호출 + 이벤트 스트리밍 */
+  async #runTool(h, name, args) {
+    const id = h.onTool({ name, args });
+    const result = await callTool(name, args, this.settings);
+    h.onToolDone(id, result);
+    return result;
+  }
+
+  /* ================ 코스 조립 ================ */
+
+  #pickNth(arr, variant) {
+    if (!arr || !arr.length) return null;
+    return arr[variant % arr.length];
+  }
+
+  #assembleAnswer(ctx, results) {
+    if (ctx.restaurantsOnly) return this.#restaurantsOnlyAnswer(ctx, results);
+    return this.#scheduleAnswer(ctx, results);
+  }
+
+  /* --- 유연 스케줄링 코스: 일정 이벤트 → 시간 순서 카드 조립 --- */
+  #scheduleAnswer(ctx, results) {
+    const sched = ctx.schedule;
+    const overnight = sched.tripType === "overnight";
+    const cards = [];
+    let no = 1;
+    for (const ev of sched.events) {
+      if (!ev.pick) continue;   /* 후보 없는 이벤트는 카드 생략(노트로 안내됨) */
+      const phase = schedulePhase(ev, overnight);
+      if (ev.kind === "act") {
+        cards.push(ev.act === "trail"
+          ? this.#trailCard(ev.pick, no++, phase)
+          : this.#spotCard(ev.pick, no++, phase));
+      } else if (ev.kind === "hotel") {
+        cards.push(this.#hotelCard(ev.pick, no++, phase));
+      } else {
+        cards.push(this.#restCard(ev.pick, no++, phase));
+      }
+    }
+
+    const rangeText = overnight
+      ? `1일차 ${hh(sched.d1.s)}~${hh(sched.d1.e)} · 2일차 ${hh(sched.d2.s)}~${hh(sched.d2.e)}`
+      : `${hh(sched.d1.s)}~${hh(sched.d1.e)}`;
+    const opts = [];
+    if (sched.meal) opts.push("식사");
+    if (sched.cafe) opts.push("카페");
+    if (overnight && sched.hotel) opts.push("무장애 숙소");
+    const intro = this.#scheduleIntro(ctx, rangeText, opts, cards.length);
+
+    /* 후속 "식당만 더 보여줘" 질문을 위한 인근 상권 기억 */
+    this.lastSubAreas = sched.events
+      .filter((ev) => ev.kind === "act" && ev.pick && ev.pick.subArea)
+      .map((ev) => ev.pick.subArea);
+
+    const summary = this.#scheduleSummary(sched.events);
+    const invite = this.#scheduleInvite(ctx, sched.events, overnight);
+    /* 하단 동선 요약·지도 핀 — 초대장과 같은 routeRows 데이터를 공유 */
+    const route = { points: routeRows(sched.events, overnight) };
+
+    return {
+      type: "course",
+      intro,
+      labels: ctx.labels,
+      cards,
+      summary,
+      invite,
+      route,
+      followups: FOLLOWUP_CHIPS,
+      meta: {
+        source: results.spots?.source || results.rests?.source || results.hotels?.source || "sample",
+        region: ctx.region,
+        variant: ctx.variant,
+      },
+    };
+  }
+
+  /* 일정 이벤트(kind=act)에 관광지/산책로 배정 — 변형 코스 회전 */
+  #assignActPicks(ctx, results, h) {
+    const spots = results.spots?.items || [];
+    const trails = results.trails?.items || [];
+    let si = 0, ti = 0;
+    let hourFallbackNoted = false;
+    let unverifiedNoted = false;
+    for (const ev of ctx.schedule.events) {
+      if (ev.kind !== "act") continue;
+      if (ev.act === "spot") {
+        /* 이벤트 시간대(새벽·야간 포함)에 운영 중인 곳을 우선 배정 — 24시간 운영 장소 반영 */
+        const fits = (sp) =>
+          spotOpenAt(sp.usageHour, ev.start, ev.end) &&
+          !(ev.start < 9 && !hoursKnown(sp.usageHour));   /* 새벽 슬롯은 운영시간 명시 곳만 */
+        let pick = null, anyOpen = false, usedUnverified = false;
+        if (spots.length) {
+          for (let k = 0; k < spots.length; k++) {   /* 1차: 무장애 검증된 곳만 */
+            const cand = spots[(ctx.variant + si + k) % spots.length];
+            if (cand.liveUnverified || !fits(cand)) continue;
+            pick = cand; anyOpen = true; break;
+          }
+          if (!pick) {
+            for (let k = 0; k < spots.length; k++) {   /* 2차: 조건 완화 — 미검증 실시간 결과 허용 */
+              const cand = spots[(ctx.variant + si + k) % spots.length];
+              if (!fits(cand)) continue;
+              pick = cand; anyOpen = true; usedUnverified = !!cand.liveUnverified; break;
+            }
+          }
+          if (!pick) pick = spots[(ctx.variant + si) % spots.length];   /* 전부 불일치 → 회전 폴백 */
+          si++;
+        }
+        if (spots.length && !anyOpen && !hourFallbackNoted) {
+          hourFallbackNoted = true;
+          h.onNote("선택 시간대에 운영 중 표시된 관광지 정보가 부족해 운영시간 확인이 필요한 곳도 함께 골랐어요.");
+        }
+        if (pick?.liveUnverified && !unverifiedNoted) {
+          unverifiedNoted = true;
+          h.onNote("무장애 검증 정보가 있는 곳이 부족해 실시간 검색 결과(⚠️ 현장 확인 필요)도 보조로 골랐어요.");
+        }
+        ev.pick = pick;
+      } else {
+        ev.pick = trails.length ? trails[(ctx.variant + ti++) % trails.length] : null;
+      }
+      if (!ev.pick) {
+        h.onNote(`${ev.day === 2 ? "2일차" : "1일차"} ${fmtT(ev.start)} ${ev.act === "trail" ? "산책로" : "관광지"} 후보가 없어 일정에서 제외했어요.`);
+      }
+    }
+  }
+
+  /* 식사·카페·숙소 이벤트 배정 — 점심·저녁은 서로 다른 식당, 카페는 카페 종목 우선 */
+  #assignRestPicks(ctx, results, h) {
+    const rests = results.rests?.items || [];
+    const hotels = results.hotels?.items || [];
+    const used = new Set();
+    const CAFE_RE = /카페|베이커리|브런치|디저트|다방|찻집/i;
+    let lunchPickRef = null;
+    const pickRest = (filterFn) => {
+      const pool = filterFn ? rests.filter(filterFn) : rests.slice();
+      const unused = pool.filter((r) => !used.has(r.bizesId || r.bizesNm));
+      const pick = this.#pickNth(unused.length ? unused : pool, ctx.variant);
+      if (pick) used.add(pick.bizesId || pick.bizesNm);
+      return pick;
+    };
+    for (const ev of ctx.schedule.events) {
+      if (ev.kind === "lunch" || ev.kind === "dinner") {
+        ev.pick = pickRest();
+        if (!ev.pick) {
+          h.onNote(`${ev.day === 2 ? "2일차" : "1일차"} ${fmtT(ev.start)} 식당 후보가 없어 일정에서 제외했어요.`);
+        } else if (ev.kind === "dinner" && lunchPickRef && (ev.pick.bizesId || ev.pick.bizesNm) === (lunchPickRef.bizesId || lunchPickRef.bizesNm)) {
+          ev.pick = null;
+          h.onNote("식당 후보가 하나뿐이라 저녁은 점심 장소 재방문을 권해요.");
+        }
+        if (ev.kind === "lunch" && ev.pick) lunchPickRef = ev.pick;
+      } else if (ev.kind === "cafe") {
+        ev.pick = pickRest((r) => CAFE_RE.test(`${r.indsMclsNm || ""} ${r.indsSclsNm || ""} ${r.bizesNm || ""}`)) || pickRest();
+        if (!ev.pick) h.onNote(`${ev.day === 2 ? "2일차" : "1일차"} ${fmtT(ev.start)} 카페 후보가 없어 일정에서 제외했어요.`);
+      } else if (ev.kind === "hotel") {
+        ev.pick = hotels.length ? this.#pickNth(hotels, ctx.variant) : null;
+        if (!ev.pick) h.onNote("숙소 후보가 없어 체크인 일정에서 제외했어요.");
+      }
+    }
+  }
+
+  /* --- 스케줄 인트로 --- */
+  #scheduleIntro(ctx, rangeText, opts, cardCount) {
+    const parts = [];
+    if (ctx.mobility.includes("wheelchair") || ctx.mobility.includes("senior")) {
+      parts.push("휠체어·보행기 이용 가족이라면 턱과 경사가 제일 큰 걱정이죠.");
+    }
+    if (ctx.variant > 0) parts.push("이전과 다른 조합으로 새로 검증했어요.");
+    const overnight = ctx.schedule.tripType === "overnight";
+    parts.push(
+      `열린관광지(무장애 정보)·무장애 탐방로·상권정보${overnight ? "·숙박" : ""} 데이터를 조합해 ` +
+      `${ctx.region} ${overnight ? "1박 2일" : "당일"} 코스(${rangeText})를 만들었어요. ` +
+      `옵션: ${opts.length ? opts.join(" · ") : "없음"} — 시간대에 맞춰 ${cardCount}곳을 유연하게 배치했어요.`
+    );
+    if (ctx.schedule.meal && !ctx.schedule.events.some((ev) => ev.kind === "lunch" || ev.kind === "dinner")) {
+      parts.push("식사 포함을 선택하셨지만 활동 시간에 여유가 없어 식당을 뺐어요.");
+    }
+    if (ctx.schedule.cafe && !ctx.schedule.events.some((ev) => ev.kind === "cafe")) {
+      parts.push("카페 옵션은 활동 시간에 여유가 없어 제외했어요.");
+    }
+    parts.push("아래 카드를 시간 순서대로 따라가시면 돼요.");
+    return parts.join(" ");
+  }
+
+  /* --- 스케줄 안심 체크포인트 --- */
+  #scheduleSummary(evs) {
+    const pts = [];
+    for (const ev of evs) {
+      if (!ev.pick) continue;
+      const dayTag = ev.day === 2 ? "2일차 " : "";
+      if (ev.kind === "act" && ev.act === "trail") {
+        pts.push(`${dayTag}산책로 최대 경사도 ${ev.pick.maxSlope}% — 8% 이하 데크길`);
+        if (ev.pick.handrail === "Y") pts.push(`${dayTag}산책로 안전 난간 완비`);
+        if (ev.pick.restArea === "Y") pts.push(`${dayTag}산책로 중간 휴식 공간 완비`);
+        if (ev.pick.accessibleToilet === "Y") pts.push(`${dayTag}산책로 인근 장애인 화장실 완비`);
+      } else if (ev.kind === "act" && ev.act === "spot") {
+        const b = ev.pick.barrier || {};
+        if (b.rental === "Y") pts.push(`휠체어 대여: ${ev.pick.rentalInfo || ev.pick.title}`);
+        if (b.toilet === "Y") pts.push(`${ev.pick.title} 장애인 화장실 완비`);
+      } else if (ev.kind === "lunch" || ev.kind === "dinner") {
+        const unv = !!ev.pick.liveUnverified;
+        pts.push(`${ev.kind === "dinner" ? "저녁 식당" : "식당"} ${ev.pick.bizesNm} — ${ev.pick.access?.memo || (unv ? "턱 유무 미제공 · 전화 확인 필요" : "출입구 턱 없음 확인")}`);
+      } else if (ev.kind === "cafe") {
+        pts.push(`카페 ${ev.pick.bizesNm} — 이동 중 휴식 (턱 정보는 전화 확인 권장)`);
+      } else if (ev.kind === "hotel") {
+        pts.push(`숙소 ${ev.pick.title} — ${ev.pick.roomInfo || "무장애 객실"}`);
+      }
+    }
+    return pts;
+  }
+
+  /* --- 스케줄 초대장 (동선 목록은 routeRows 데이터를 그대로 사용 — 요약 리스트·지도와 동기화) --- */
+  #scheduleInvite(ctx, evs, overnight) {
+    const lines = [];
+    lines.push(`💌 [오픈나들이] ${nextWeekendLabel()} ${overnight ? "1박 2일" : "당일"} 무장애 나들이 초대장`);
+    lines.push("");
+    let dayShown = 0;
+    for (const r of routeRows(evs, overnight)) {
+      if (overnight && r.day !== dayShown) {
+        lines.push(r.day === 1 ? "DAY 1" : "DAY 2");
+        dayShown = r.day;
+      }
+      lines.push(`${r.no}. ${r.time}  ${r.emoji} ${r.name} — ${r.address || r.query}`);
+    }
+    lines.push("");
+    lines.push("✅ 안심 체크포인트");
+    this.#scheduleSummary(evs).forEach((p) => lines.push(`· ${p}`));
+    lines.push("");
+    lines.push("💡 한 줄 팁");
+    for (const ev of evs) if (ev.pick?.tip) lines.push(`· ${ev.pick.tip}`);
+    lines.push("");
+    lines.push("일상 대화 한마디, 헛걸음 없는 나들이 — 오픈나들이 AI 에이전트가 검증했어요.");
+    lines.push("#오픈나들이 #무장애나들이 #가족나들이");
+    return lines.join("\n");
+  }
+
+  /* --- 여행지 N곳 목록 (코스가 아닌 목록형 응답) --- */
+  #spotsListAnswer(ctx, { spots }) {
+    const items = spots?.items || [];
+    const wantN = Math.max(2, Math.min(6, ctx.wantN || 3));
+    const picked = [];
+    const seen = new Set();
+    for (let i = 0; picked.length < wantN && i < items.length; i++) {
+      const it = items[(ctx.variant + i) % items.length];
+      const key = it.contentid || it.title;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      picked.push(it);
+    }
+    const cards = picked.map((s, i) => this.#spotCard(s, i + 1, `여행지 ${i + 1}`));
+    const summary = picked.slice(0, 3).map((s) => {
+      const b = s.barrier || {};
+      const bits = [];
+      if (b.rental === "Y") bits.push("휠체어 대여");
+      if (b.toilet === "Y") bits.push("장애인 화장실");
+      if (b.enterable === "Y") bits.push("휠체어 진입");
+      if (b.elevator === "Y") bits.push("엘리베이터");
+      if (b.parking === "Y") bits.push("전용 주차장");
+      if (s.liveUnverified) bits.push("현장 확인 필요");
+      return `${s.title} — ${bits.length ? bits.join(", ") : "무장애 정보 미제공"}`;
+    });
+    const intro =
+      `${ctx.region}에서 부모님·휠체어 기준으로 편하게 가볼 만한 여행지 ${picked.length}곳을 골랐어요. ` +
+      "코스가 아니라 목록이에요 — 시간대 슬라이더는 코스 요청에 적용돼요. " +
+      "마음에 드는 곳을 말씀해 주시면 점심 식당과 산책로까지 붙인 코스로 바꿔 드릴게요.";
+
+    const invite = [
+      `💌 [오픈나들이] ${nextWeekendLabel()} 여행지 목록 (${ctx.region})`,
+      "",
+      ...picked.map((s, i) => `${i + 1}. ${s.emoji || "📍"} ${s.title} — ${s.addr1}`),
+      "",
+      "✅ 안심 체크포인트",
+      ...summary.map((p) => `· ${p}`),
+      "",
+      "일상 대화 한마디, 헛걸음 없는 나들이 — 오픈나들이 AI 에이전트가 검증했어요.",
+      "#오픈나들이 #무장애나들이 #가족나들이",
+    ].join("\n");
+
+    return {
+      type: "course",
+      intro,
+      labels: ctx.labels,
+      cards,
+      summary,
+      invite,
+      followups: FOLLOWUP_CHIPS,
+      meta: { source: spots?.source || "sample", region: ctx.region, variant: ctx.variant },
+    };
+  }
+
+  /* --- 식당만 --- */
+  #restaurantsOnlyAnswer(ctx, { rests }) {
+    const items = rests?.items || [];
+    const picks = [];
+    for (let i = 0; i < Math.min(3, items.length); i++) {
+      picks.push(items[(ctx.variant * 3 + i) % items.length]);
+    }
+    const cards = picks.map((r, i) => this.#restCard(r, i + 1, i === 0 ? "점심 추천" : `${i + 1}순위`));
+    const names = picks.map((p) => p.bizesNm).join(", ");
+    const intro =
+      `${ctx.region} 인근에서 출입구 턱 없는 식당 ${picks.length}곳을 골랐어요. ` +
+      "모든 매장은 입구 단차 없음 기준으로 검증했어요.";
+    const summary = picks.map((p) =>
+      `${p.bizesNm} — ${p.access.memo || "턱 없는 출입구 확인"}`);
+    const invite = [
+      `💌 [오픈나들이] ${nextWeekendLabel()} 맛집 나들이 초대장`,
+      "",
+      `🍚 턱 없는 식당 · ${ctx.region}`,
+      ...picks.map((p, i) => `${i + 1}. ${p.bizesNm} (${p.indsSclsNm}) — ${p.rdnmAdr}`),
+      "",
+      "✅ 안심 체크포인트",
+      ...picks.map((p) => `· ${p.bizesNm}: ${p.access.memo || "출입구 턱 없음"}`),
+      "",
+      "#오픈나들이 #무장애나들이",
+    ].join("\n");
+
+    return {
+      type: "course",
+      intro, labels: ctx.labels, cards, summary, invite,
+      followups: FOLLOWUP_CHIPS.filter((c) => c !== "식당만 더 보여줘"),
+      meta: { source: rests?.source || "sample", region: ctx.region, variant: ctx.variant },
+    };
+  }
+
+  /* --- 카드 생성 --- */
+  #spotCard(spot, no, phase) {
+    /* 실시간 공공데이터 결과: 무장애 여부 미제공 → 미검증 배지로만 표시 (상세 조회로 확보된 운영시간은 표시) */
+    if (spot.liveUnverified) {
+      const details = [["출처", "공공데이터포털 TourAPI 검색 결과"]];
+      if (spot.usageHour) details.unshift(["운영", spot.usageHour]);
+      return {
+        no, phase, kind: "관광지 · 실시간 검색", kindIcon: "📡",
+        name: spot.title, address: spot.addr1 || "주소 확인 필요", emoji: spot.emoji || "📍",
+        badges: ["unverified"],
+        details,
+        tip: spot.tip,
+        mapQuery: spot.title,
+      };
+    }
+    const b = spot.barrier || {};
+    const badges = [];
+    if (b.rental === "Y") badges.push("rental");
+    if (b.toilet === "Y") badges.push("toilet");
+    if (b.enterable === "Y") badges.push("enterable");
+    if (b.elevator === "Y") badges.push("elevator");
+    if (b.parking === "Y") badges.push("parking");
+    const details = [];
+    if (spot.cat3name) details.push(["종목", spot.cat3name]);
+    if (spot.usageHour) details.push(["운영", spot.usageHour]);
+    if (b.rental === "Y" && spot.rentalInfo) details.push(["대여", spot.rentalInfo]);
+    /* 이곳을 고른 이유를 카드에 그대로 보여준다 */
+    const why = [];
+    if (b.rental === "Y") why.push("휠체어 대여");
+    if (b.enterable === "Y") why.push("휠체어 진입로");
+    if (b.toilet === "Y") why.push("장애인 화장실");
+    if (b.parking === "Y") why.push("전용 주차");
+    if (b.elevator === "Y") why.push("엘리베이터");
+    details.push(["선정", why.length ? `${why.join(" · ")} 검증` : "무장애 정보 기준 통과"]);
+    return {
+      no, phase, kind: "관광지", kindIcon: "🏛️",
+      name: spot.title, address: spot.addr1, emoji: spot.emoji,
+      badges, details, tip: spot.tip,
+      mapQuery: spot.title,
+    };
+  }
+
+  #trailCard(trail, no, phase) {
+    const badges = ["slope8"];
+    if (trail.handrail === "Y") badges.push("handrail");
+    if (trail.restArea === "Y") badges.push("restArea");
+    if (trail.accessibleToilet === "Y") badges.push("toilet");
+    return {
+      no, phase, kind: "무장애 산책로", kindIcon: "🌲",
+      name: `${trail.parkName} · ${trail.trailName}`,
+      address: `${trail.startPoint} → ${trail.endPoint} (${trail.distance}·${trail.duration})`,
+      emoji: trail.emoji,
+      badges, badgeNote: { slope8: `최대 경사도 ${trail.maxSlope}%` },
+      details: [
+        ["경사", `최대 ${trail.maxSlope}% (${trail.slopeRating})`],
+        ["바닥", trail.surface],
+        ["난간", trail.handrail === "Y" ? "전 구간 안전 난간" : "구간 확인 필요"],
+        ["휴식", trail.restArea === "Y" ? "중간 휴식 공간 완비" : "구간 확인 필요"],
+        ["화장실", trail.accessibleToilet === "Y" ? "인근 장애인 화장실 완비" : "인근 확인 필요"],
+        ["관리", trail.agency || "지자체 무장애 탐방로"],
+      ],
+      tip: trail.tip,
+      mapQuery: trail.parkName,
+    };
+  }
+
+  #restCard(r, no, phase) {
+    /* 실시간 상권정보 결과: 턱 정보 미제공 → 미검증 배지 */
+    if (r.liveUnverified) {
+      return {
+        no, phase, kind: "식당 · 실시간 검색", kindIcon: "📡",
+        name: r.bizesNm, address: r.rdnmAdr || "주소 확인 필요", emoji: "🍽️",
+        badges: ["unverified"],
+        details: [["업종", r.indsSclsNm || "음식점"], ["출처", "공공데이터포털 상권정보 검색 결과"]],
+        tip: r.tip,
+        mapQuery: r.bizesNm,
+      };
+    }
+    const a = r.access || {};
+    const badges = ["stepFree"];
+    if (a.toilet) badges.push("toilet");
+    if (a.lowTable) badges.push("lowTable");
+    if (a.parking) badges.push("parking");
+    return {
+      no, phase, kind: "식당", kindIcon: "🍚",
+      name: r.bizesNm, address: r.rdnmAdr, emoji: "🍽️",
+      badges, details: [["업종", `${r.indsMclsNm} · ${r.indsSclsNm}`], ["출입구", a.memo || "턱 없음"]],
+      tip: r.tip,
+      mapQuery: r.bizesNm,
+    };
+  }
+
+  /* --- 숙박 카드 --- */
+  #hotelCard(ht, no, phase) {
+    if (ht.liveUnverified) {
+      return {
+        no, phase, kind: "숙박 · 실시간 검색", kindIcon: "📡",
+        name: ht.title, address: ht.addr1 || "주소 확인 필요", emoji: "🏨",
+        badges: ["unverified"],
+        details: [["출처", "공공데이터포털 무장애여행 숙박 결과"]],
+        tip: ht.tip,
+        mapQuery: ht.title,
+      };
+    }
+    const b = ht.barrier || {};
+    const badges = [];
+    if (b.rental === "Y") badges.push("rental");
+    if (b.toilet === "Y") badges.push("toilet");
+    if (b.enterable === "Y") badges.push("enterable");
+    if (b.elevator === "Y") badges.push("elevator");
+    if (b.parking === "Y") badges.push("parking");
+    return {
+      no, phase, kind: "숙박 · 무장애 객실", kindIcon: "🏨",
+      name: ht.title, address: ht.addr1, emoji: ht.emoji || "🏨",
+      badges, details: ht.roomInfo ? [["객실", ht.roomInfo]] : [],
+      tip: ht.tip,
+      mapQuery: ht.title,
+    };
+  }
+}
+
+/* 후속(조건 변경 재질문) 칩 */
+const FOLLOWUP_CHIPS = [
+  "다른 코스로 다시 추천해줘",
+  "다른 지역 코스 보여줘",
+  "비 오는 날 실내 코스로 바꿔줘",
+  "식당만 더 보여줘",
+];
+
+/* ============================ 유연 스케줄링 ============================ */
+/**
+ * 일정 설정(아코디언) 검증·기본화. UI가 항상 전달하지만,
+ * 직접 호출(테스트 등) 시 기본값: 당일 00:00~24:00 · 식사 포함.
+ */
+function normalizeSchedule(raw) {
+  const num = (v, def) => (Number.isFinite(Number(v)) ? Number(v) : def);
+  const clampR = (r, defS, defE) => {
+    let s = Math.max(0, Math.min(24, Math.round(num(r?.s, defS))));
+    let e = Math.max(0, Math.min(24, Math.round(num(r?.e, defE))));
+    if (e <= s) {
+      if (s >= 24) { s = 23; e = 24; }  /* 상한에서 충돌 → 23~24로 보정 */
+      else e = s + 1;
+    }
+    return { s, e };
+  };
+  return {
+    tripType: raw?.tripType === "overnight" ? "overnight" : "day",
+    d1: clampR(raw?.d1, 0, 24),
+    d2: clampR(raw?.d2, 0, 24),
+    meal: raw ? !!raw.meal : true,
+    cafe: raw ? !!raw.cafe : true,   /* 제품 기본값: 식사+카페 모두 ON */
+    hotel: raw ? !!raw.hotel : false,
+  };
+}
+
+const ACT_DUR = { act: 2.5, lunch: 1.25, cafe: 1, dinner: 1.5, hotel: 0.5 };
+const WINDOW = { lunch: [11, 13], cafe: [13.75, 16], dinner: [17, 18.75] };
+
+/**
+ * 일정 설정 → 이벤트 배열 (유연한 스케줄링).
+ * 활동을 시간대 칸에 고정하지 않고, 남은 시간과 끼니·카페 시간 창에 맞춰 배치한다.
+ * pref.trailOk: 발화 테마상 산책로 배치 가능(바다·공원·산책, 우천 아님) 여부
+ * 슬라이더로 지정한 시간 범위(d1·d2)는 항상 그대로 존중한다.
+ */
+function buildSchedule(sched, pref = {}) {
+  const days = sched.tripType === "overnight"
+    ? [{ day: 1, ...sched.d1 }, { day: 2, ...sched.d2 }]
+    : [{ day: 1, ...sched.d1 }];
+  const events = [];
+  for (const d of days) events.push(...scheduleDayRange(d, sched, pref));
+  return events;
+}
+
+function scheduleDayRange({ day, s, e }, sched, pref) {
+  const isD2 = day === 2;
+  /* 슬라이더로 지정한 시간 범위는 그대로 존중 — 00시 시작이면 00시부터 배치하고, 그 어떤 키워드(부모님 동행 등)로도 미루지 않는다 */
+  const sUse = s;
+  const lunch = sched.meal && sUse < 14 && e > 11;
+  const dinner = sched.meal && !isD2 && e >= 17;
+  const cafe = sched.cafe && sUse < 17 && e > 13;
+
+  /* 끼니·카페 시간 창을 앵커로 세우고, 앵커 사이 빈 구간에 활동을 균등 분배해 채운다 */
+  const anchors = [lunch && "lunch", cafe && "cafe", dinner && "dinner"].filter(Boolean)
+    .sort((a, b) => WINDOW[a][0] - WINDOW[b][0]);
+  const hotelGap = !isD2 && sched.tripType === "overnight" && sched.hotel ? 1.5 : 0;
+  const dayEnd = e - hotelGap;   /* 숙소 체크인 1.5시간은 하루 끝에 비워 둠 */
+
+  const seq = [];
+  let cursor = sUse;
+  for (const kind of anchors) {
+    const [lo, hi] = WINDOW[kind];
+    let start = Math.max(cursor, lo);
+    if (start > hi) start = hi;      /* 창이 밀렸으면 창 끝으로 */
+    if (start < cursor) break;       /* 끼니 시간이 이미 지났으면 이후 끼니도 생략 */
+    const end = Math.min(e, start + ACT_DUR[kind]);
+    if (end - start < 0.25) break;
+    fillWithActs(seq, cursor, start, day);
+    seq.push({ kind, day, start, end });
+    cursor = end;
+  }
+  fillWithActs(seq, cursor, dayEnd, day);
+  if (hotelGap) seq.push({ kind: "hotel", day, start: e - 1.5, end: e });
+
+  /* 산책로 교차: 날 전체 활동 순서 기준 (관광지→산책로→관광지…) */
+  let ai = 0;
+  for (const ev of seq) {
+    if (ev.kind !== "act") continue;
+    ev.act = pref.trailOk && ai % 3 === 1 ? "trail" : "spot";
+    ai++;
+  }
+  return seq;
+}
+
+/* [from, to] 빈 구간을 활동으로 채움 — 활동 1개 2.5시간 기준 균등 분할(0.75~3시간) */
+function fillWithActs(seq, from, to, day) {
+  const len = to - from;
+  if (len < 0.75) return;   /* 너무 짧은 틈은 비워 둔다 */
+  let n = Math.max(1, Math.round(len / 2.5));
+  if (len / n > 3) n += 1;
+  const dur = Math.max(0.75, Math.round((len / n) * 4) / 4);
+  for (let i = 0; i < n; i++) {
+    seq.push({
+      kind: "act", day,
+      start: from + i * dur,
+      end: i === n - 1 ? to : from + (i + 1) * dur,   /* 마지막 활동이 구간 끝까지 채움 */
+    });
+  }
+}
+
+const hh = (h) => `${String(h).padStart(2, "0")}:00`;
+const fmtT = (x) => {
+  const h = Math.floor(x);
+  const m = Math.round((x - h) * 4) / 4 * 60;   /* 15분 단위 반올림 */
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+};
+const KIND_LABEL = { lunch: "점심", cafe: "카페", dinner: "저녁", hotel: "체크인" };
+
+/**
+ * 코스 동선 요약 행 — 초대장 텍스트·하단 요약 리스트·지도 핀이 이 데이터 하나를 공유한다.
+ * barrier: 무장애 핵심 정보(경사도·편의시설 등), query/queryAlt: 지오코딩용 검색어,
+ * lat/lng: 실시간 데이터가 제공하는 좌표(없으면 null — UI에서 지오코딩으로 보완)
+ */
+function routeRows(evs, overnight) {
+  const rows = [];
+  for (const ev of evs) {
+    const p = ev.pick;
+    if (!p) continue;
+    const row = {
+      no: rows.length + 1,
+      day: ev.day,
+      time: fmtT(ev.start),
+      phase: schedulePhase(ev, overnight),
+      name: "", address: "", emoji: "",
+      barrier: [], query: "", queryAlt: "",
+      lat: null, lng: null,
+    };
+    if (ev.kind === "act" && ev.act === "trail") {
+      row.name = `${p.parkName} · ${p.trailName}`;
+      row.address = `${p.startPoint} → ${p.endPoint} (${p.distance}·${p.duration})`;
+      row.emoji = p.emoji || "🌲";
+      row.barrier.push(`최대 경사도 ${p.maxSlope}%`);
+      if (p.handrail === "Y") row.barrier.push("안전 난간");
+      if (p.restArea === "Y") row.barrier.push("휴식 공간");
+      if (p.accessibleToilet === "Y") row.barrier.push("장애인 화장실");
+      row.query = p.startPoint || p.parkName;
+      row.queryAlt = p.parkName;
+    } else if (ev.kind === "act") {
+      const b = p.barrier || {};
+      row.name = p.title;
+      row.address = p.addr1 || "";
+      row.emoji = p.emoji || "📍";
+      if (b.rental === "Y") row.barrier.push("휠체어 대여");
+      if (b.toilet === "Y") row.barrier.push("장애인 화장실");
+      if (b.enterable === "Y") row.barrier.push("휠체어 진입");
+      if (b.elevator === "Y") row.barrier.push("엘리베이터");
+      if (b.parking === "Y") row.barrier.push("전용 주차");
+      if (p.usageHour) row.barrier.push(`운영 ${p.usageHour}`);
+      row.query = p.addr1 ? `${p.title} ${p.addr1}` : p.title;
+      row.queryAlt = p.title;
+      if (p.yswftm && p.xswftm) { row.lat = +p.yswftm; row.lng = +p.xswftm; }
+    } else if (ev.kind === "hotel") {
+      const b = p.barrier || {};
+      row.name = p.title;
+      row.address = p.addr1 || "";
+      row.emoji = "🏨";
+      if (p.roomInfo) row.barrier.push(p.roomInfo);
+      if (b.elevator === "Y") row.barrier.push("엘리베이터");
+      if (b.toilet === "Y") row.barrier.push("장애인 화장실");
+      if (b.parking === "Y") row.barrier.push("전용 주차");
+      row.query = p.addr1 ? `${p.title} ${p.addr1}` : p.title;
+      row.queryAlt = p.title;
+    } else {
+      const a = p.access || {};
+      row.name = p.bizesNm;
+      row.address = p.rdnmAdr || "";
+      row.emoji = ev.kind === "cafe" ? "☕" : "🍚";
+      if (p.liveUnverified) row.barrier.push("턱 유무 전화 확인 필요");
+      else row.barrier.push(a.memo || "출입구 턱 없음");
+      if (a.toilet) row.barrier.push("장애인 화장실");
+      if (a.lowTable) row.barrier.push("저상 테이블");
+      row.query = p.rdnmAdr || p.bizesNm;
+      row.queryAlt = `${p.bizesNm} ${p.rdnmAdr || ""}`.trim();
+    }
+    rows.push(row);
+  }
+  return rows;
+}
+
+/* usageHour 문자열로 이벤트 시간대 운영 여부 판정 — "연중무휴"/"24시간"·미제공은 제한 없음 */
+function spotOpenAt(usageHour, start, end) {
+  const u = String(usageHour || "");
+  if (/연중무휴|24시간/.test(u)) return true;
+  const m = u.match(/(\d{1,2}):(\d{2})\s*[~–-]\s*(\d{1,2}):(\d{2})/);
+  if (!m) return true;
+  const open = +m[1] + +m[2] / 60;
+  const close = +m[3] + +m[4] / 60;
+  return start >= open - 0.01 && end <= close + 0.01;
+}
+
+/* 운영시간이 '명시된' 장소인지 — 연중무휴·24시간 또는 HH:MM~HH:MM 범위 */
+function hoursKnown(usageHour) {
+  const u = String(usageHour || "");
+  return /연중무휴|24시간/.test(u) || /(\d{1,2}):(\d{2})\s*[~–-]\s*(\d{1,2}):(\d{2})/.test(u);
+}
+
+/** 이벤트 → 카드 phase 라벨 ("1일차 00:00 새벽" / "09:00 오전" / "13:30 오후" / "21:15 야간") */
+function schedulePhase(ev, overnight) {
+  const dayTag = overnight ? (ev.day === 1 ? "1일차 " : "2일차 ") : "";
+  const label = ev.kind === "act"
+    ? (ev.act === "trail" ? "산책" : (ev.start < 6 ? "새벽" : ev.start < 12 ? "오전" : ev.start < 18 ? "오후" : "야간"))
+    : KIND_LABEL[ev.kind];
+  return `${dayTag}${fmtT(ev.start)} ${label}`;
+}
+
+/* 인사/안내 응답 */
+function greetingAnswer() {
+  return {
+    type: "greeting",
+    intro:
+      "안녕하세요! 저는 공공 무장애 데이터 3종(한국관광공사 열린관광지 · 국립공원공단·지자체 무장애 탐방로 · 소상공인 상권정보)을 " +
+      "자동으로 조합해, 헛걸음 없는 나들이 코스를 만들어 드리는 오픈나들이 AI 에이전트예요.\n\n" +
+      "이렇게 말씀해 보세요.\n" +
+      "· \"주말에 휠체어 타고 산책할 만한 부산 근교 나들이 장소 찾아줘\"\n" +
+      "· \"부모님 모시고 가기 좋은 바다 데크길 코스\"\n" +
+      "· \"비 오는 날 실내로 편하게 가고 싶어요\"\n\n" +
+      "지역·테마·동행 상황만 담으면, 경사도 8% 이하 산책로와 턱 없는 식당까지 한 번에 검증해 드릴게요.",
+    cards: [],
+    summary: [],
+    followups: STARTER_CHIPS,
+  };
+}
+
+const STARTER_CHIPS = [
+  "부모님 모시고 가기 좋은 부산 바다 데크길 코스",
+  "비 오는 날 휠체어로 편한 실내 나들이",
+  "평지 위주 맛집+산책 반나절 코스",
+  "제주에서 휠체어로 가볼 만한 곳 알려줘",
+];
+
+/** 이번 주말(토요일) 날짜 라벨 */
+function nextWeekendLabel() {
+  const d = new Date();
+  const add = (6 - d.getDay() + 7) % 7 || 7;
+  d.setDate(d.getDate() + add);
+  const dow = ["일", "월", "화", "수", "목", "금", "토"][d.getDay()];
+  return `${d.getMonth() + 1}월 ${d.getDate()}일(${dow})`;
+}
+
+
+/* ====== js/ui.js ====== */
+/**
+ * ui.js — 화면·인터랙션 계층
+ * 채팅 메시지, 에이전트 상태 타임라인, 도구 호출 칩, 코스 카드,
+ * 초대장/설정 모달, 토스트를 렌더링한다.
+ */
+
+
+
+const $ = (sel) => document.querySelector(sel);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({
+  "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+}[c]));
+const el = (tag, cls, text) => {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text != null) n.textContent = text;
+  return n;
+};
+
+let uiAgent = null;
+let busy = false;
+let refs = {};
+
+function init({ agentInstance, onSettingsChange }) {
+  uiAgent = agentInstance;
+  refs = {
+    chat: $("#chat"),
+    form: $("#chatForm"),
+    input: $("#chatInput"),
+    sendBtn: $("#sendBtn"),
+    quick: $("#quickChips"),
+    badge: $("#dataSourceBadge"),
+    settingsBtn: $("#settingsBtn"),
+    resetBtn: $("#resetBtn"),
+    settingsModal: $("#settingsModal"),
+    inviteModal: $("#inviteModal"),
+    toast: $("#toast"),
+  };
+
+  /* 이벤트 */
+  refs.form.addEventListener("submit", (e) => { e.preventDefault(); const t = refs.input.value.trim(); if (t) submit(t); });
+  refs.quick.addEventListener("click", (e) => {
+    const b = e.target.closest(".chip"); if (b && !busy) submit(b.dataset.q);
+  });
+  refs.settingsBtn.addEventListener("click", openSettings);
+  refs.resetBtn.addEventListener("click", resetChat);
+
+  /* 모달 닫기 */
+  document.querySelectorAll("[data-close]").forEach((b) =>
+    b.addEventListener("click", () => closeModal(b.dataset.close)));
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") { closeModal("settingsModal"); closeModal("inviteModal"); setExpanded(false); }
+  });
+  document.querySelectorAll(".modal-backdrop").forEach((m) =>
+    m.addEventListener("mousedown", (e) => { if (e.target === m) closeModal(m.id); }));
+
+  /* 설정 모달 내부 버튼 */
+  $("#saveKeysBtn").addEventListener("click", () => {
+    const s = readSettingsForm();
+    const hadMapKey = !!loadSettings().keys?.mapKakao;
+    saveSettings(s);
+    uiAgent.setSettings(s);
+    updateBadge();
+    closeModal("settingsModal");
+    /* 카카오 지도 키를 넣었으면 안 떠 있던 동선 지도를 재검색 없이 즉시 재시도 */
+    if (s.keys?.mapKakao && routeMapRetries.length) {
+      retryRouteMaps();
+      toast("설정이 저장되었어요 — 동선 지도를 다시 시도합니다.");
+    } else if (s.keys?.mapKakao && !hadMapKey) {
+      toast("설정이 저장되었어요 — 새 코스 검색 시 동선 지도가 표시돼요.");
+    } else {
+      toast("설정이 저장되었어요.");
+    }
+  });
+  $("#clearKeysBtn").addEventListener("click", () =>
+    fillSettingsForm({ useLive: false, keys: { searchOpenTouristSpots: "", searchAccessibleTrails: "", searchStepFreeRestaurants: "", mapKakao: "" } }));
+  $("#testKeysBtn").addEventListener("click", testConnection);
+
+  /* 초대장 복사 */
+  $("#copyInviteBtn").addEventListener("click", copyInvite);
+
+  /* 초기 상태 */
+  fillSettingsForm(loadSettings());
+  updateBadge();
+  renderQuickChips();
+  initScheduleBar();
+  showWelcome();
+
+  /* 프로젝트 zip 다운로드 버튼 (빌드에 zip이 내장된 경우만 표시) */
+  try {
+    if (typeof window.__ZIP_B64__ === "string" && window.__ZIP_B64__.length > 1000) {
+      const b = el("button", "btn btn-ghost", "📦 zip 받기");
+      b.type = "button";
+      b.title = "이 앱의 전체 프로젝트 zip을 다운로드합니다";
+      b.addEventListener("click", () => {
+        const a = document.createElement("a");
+        a.href = `data:application/zip;base64,${window.__ZIP_B64__}`;
+        a.download = "opennatri-project.zip";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        toast("zip 다운로드를 시작했어요 — 브라우저 다운로드 항목을 확인하세요.");
+      });
+      document.querySelector(".header-actions")?.appendChild(b);
+    }
+  } catch (_) { /* 비브라우저 환경 */ }
+}
+
+/* ============================ 전송 흐름 ============================ */
+
+async function submit(text) {
+  if (busy) return;
+  busy = true;
+  /* 전송 시 시간대 패널 자동 접기 — 답변이 화면을 가리지 않도록 */
+  setExpanded(false);
+  refs.input.value = "";
+  setBusy(true);
+
+  addUserMessage(text);
+  const { bubble, handlers } = newAgentBubble();
+  try {
+    /* 일정·시간대 설정값을 에이전트에 전달 → 유연한 스케줄링 (blocks → schedule) */
+    await uiAgent.handle(text, handlers, {
+      schedule: {
+        tripType: schedState.tripType,
+        d1: { ...schedState.d1 },
+        d2: { ...schedState.d2 },
+        meal: schedState.meal,
+        cafe: schedState.cafe,
+        hotel: schedState.hotel,
+      },
+    });
+  } catch (err) {
+    handlers.onAnswer({
+      type: "greeting",
+      intro: "죄송해요, 처리 중 문제가 생겼어요. 다시 한 번 말씀해 주시겠어요?",
+      cards: [], summary: [],
+      followups: ["부모님 모시고 가기 좋은 부산 바다 데크길 코스", "비 오는 날 휠체어로 편한 실내 나들이"],
+    });
+    console.error(err);
+  }
+  busy = false;
+  setBusy(false);
+}
+
+function setBusy(v) {
+  refs.sendBtn.disabled = v;
+  refs.input.disabled = v;
+  document.querySelectorAll(".chip").forEach((c) => (c.disabled = v));
+}
+
+function addUserMessage(text) {
+  const m = el("div", "msg user");
+  m.innerHTML = `<div class="bubble"><p>${esc(text)}</p></div>`;
+  refs.chat.appendChild(m);
+  autoscroll();
+}
+
+function newAgentBubble() {
+  const m = el("div", "msg agent");
+  m.innerHTML = `
+    <div class="avatar" aria-hidden="true">🌿</div>
+    <div class="bubble">
+      <div class="timeline"></div>
+      <div class="content"></div>
+      <div class="chips"></div>
+    </div>`;
+  refs.chat.appendChild(m);
+  autoscroll();
+
+  const timeline = m.querySelector(".timeline");
+  const content = m.querySelector(".content");
+  const chips = m.querySelector(".chips");
+
+  const handlers = {
+    /* 진행 상태 스텝 생성 */
+    onStatus({ icon, title, labels, detail }) {
+      const s = newStep(timeline, icon, title, detail);
+      if (labels?.length) {
+        const row = el("div", "intent-chips");
+        labels.forEach((l) => row.appendChild(el("span", "intent-chip", l)));
+        s.querySelector(".step-body").appendChild(row);
+      }
+      return s;
+    },
+    onStatusDone(s, detail) {
+      doneStep(s);
+      if (detail) s.querySelector(".step-body").appendChild(el("div", "step-detail", detail));
+      autoscroll();
+    },
+    /* 도구(Function) 호출 시각화 */
+    onTool({ name, args }) {
+      const spec = TOOL_SPECS.find((t) => t.name === name);
+      const s = newStep(timeline, spec.icon, `${spec.label} 조회 중…`);
+      const chip = el("details", "tool-chip");
+      chip.innerHTML = `
+        <summary><code>${esc(name)}(${esc(JSON.stringify(args))})</code></summary>
+        <pre>${esc(JSON.stringify(args, null, 2))}</pre>`;
+      s.querySelector(".step-body").appendChild(chip);
+      return s;
+    },
+    onToolDone(s, result) {
+      doneStep(s);
+      const src = result.source === "live" ? "실시간 API (apis.data.go.kr)"
+        : result.source === "snapshot" ? "실측 데이터 스냅샷 (실제 API 응답 캡처)"
+        : "내장 샘플 데이터(시연용 가상)";
+      s.querySelector(".step-body").appendChild(el("div", "step-detail",
+        `→ 응답 ${result.items.length}건 선별 · ${src}`));
+      if (result.liveNote) s.querySelector(".step-body").appendChild(el("div", "step-note", `ⓘ ${result.liveNote}`));
+      autoscroll();
+    },
+    /* 검증 근거 메모 (마지막 스텝 하단) */
+    onNote(text) {
+      const last = timeline.lastElementChild;
+      const body = last?.querySelector(".step-body");
+      const note = el("div", "step-note", `· ${text}`);
+      if (body) body.appendChild(note); else timeline.appendChild(note);
+      autoscroll();
+    },
+    onAnswer(answer) { renderAnswer(content, chips, answer); autoscroll(); },
+  };
+  return { bubble: m, handlers };
+}
+
+function newStep(timeline, icon, title, detail) {
+  const s = el("div", "step active");
+  s.innerHTML = `
+    <div class="dot"><span class="spinner" aria-hidden="true"></span></div>
+    <div class="step-body">
+      <div class="step-title"><span class="step-icon">${icon}</span> ${esc(title)}</div>
+      ${detail ? `<div class="step-detail">${esc(detail)}</div>` : ""}
+    </div>`;
+  timeline.appendChild(s);
+  autoscroll();
+  return s;
+}
+
+function doneStep(s) {
+  s.classList.remove("active");
+  s.classList.add("done");
+  s.querySelector(".dot").textContent = "✓";
+}
+
+function autoscroll() {
+  requestAnimationFrame(() => { refs.chat.scrollTop = refs.chat.scrollHeight; });
+}
+
+/* ============================ 응답 렌더 ============================ */
+
+function renderAnswer(content, chips, answer) {
+  const intro = el("div", "intro");
+  intro.innerHTML = esc(answer.intro).replace(/\n/g, "<br>");
+  content.appendChild(intro);
+
+  if (answer.labels?.length) {
+    const row = el("div", "intent-chips answer-labels");
+    answer.labels.forEach((l) => row.appendChild(el("span", "intent-chip", l)));
+    content.appendChild(row);
+  }
+
+  if (answer.cards?.length) {
+    const rail = el("div", "course");
+    answer.cards.forEach((c) => rail.appendChild(renderCard(c)));
+    content.appendChild(rail);
+  }
+
+  /* 카드 하단: 전체 동선 요약 리스트 + 인라인 지도 (초대장과 같은 route 데이터) */
+  if (answer.route?.points?.length) renderRouteSection(content, answer);
+
+  if (answer.summary?.length) {
+    const sum = el("div", "summary");
+    sum.innerHTML = `<strong>✅ 안심 체크포인트</strong><ul>${answer.summary.map((s) => `<li>${esc(s)}</li>`).join("")}</ul>`;
+    content.appendChild(sum);
+  }
+
+  if (answer.invite) {
+    const row = el("div", "invite-row");
+    const btn = el("button", "btn btn-primary btn-lg", "💌 가족 단톡방용 초대장 만들기");
+    btn.addEventListener("click", () => openInvite(answer.invite));
+    row.appendChild(btn);
+    content.appendChild(row);
+  }
+
+  renderChips(chips, answer.followups || []);
+}
+
+function renderCard(c) {
+  const card = el("article", "card");
+  card.innerHTML = `
+    <div class="card-rail">
+      <div class="card-order"><span class="no">${c.no}</span></div>
+      <div class="phase">${esc(c.phase)}</div>
+    </div>
+    <div class="card-main">
+      <div class="card-head">
+        <span class="card-emoji" aria-hidden="true">${c.emoji}</span>
+        <div class="card-names">
+          <h3 class="card-title">${esc(c.name)}</h3>
+          <span class="card-type">${c.kindIcon} ${esc(c.kind)}</span>
+        </div>
+      </div>
+      <div class="card-addr">📍 ${esc(c.address)}</div>
+      <div class="badges">${c.badges.map((k) => badgeHtml(k, c.badgeNote?.[k])).join("")}</div>
+      ${c.details?.length ? `<div class="card-details">${c.details.map(([k, v]) => `<span><b>${esc(k)}</b> ${esc(v)}</span>`).join("")}</div>` : ""}
+      <div class="card-tip">💡 ${esc(c.tip)}</div>
+      <div class="card-links"><a href="${mapUrl(c.mapQuery)}" target="_blank" rel="noopener">🗺️ 지도에서 보기</a></div>
+    </div>`;
+  return card;
+}
+
+function badgeHtml(key, note) {
+  const d = BADGE_DEFS[key];
+  if (!d) return "";
+  return `<span class="badge b-${key}" title="${esc(note || d.label)}">${d.emoji} ${esc(note || d.label)}</span>`;
+}
+
+const mapUrl = (q) => `https://map.naver.com/p/search/${encodeURIComponent(q)}`;
+
+/* ==================== 전체 동선 요약 + 인라인 지도 (카카오맵) ==================== */
+
+const GEO_CACHE_KEY = "opennatri.geo.v1";
+function loadGeoCache() {
+  try { return JSON.parse(localStorage.getItem(GEO_CACHE_KEY) || "{}"); } catch (_) { return {}; }
+}
+function saveGeoCache(c) {
+  try { localStorage.setItem(GEO_CACHE_KEY, JSON.stringify(c)); } catch (_) { /* 저장소 미사용 환경 */ }
+}
+
+let kakaoReadyKey = null;
+/** 카카오맵 JS SDK를 한 번만 로드 (autoload=false → kakao.maps.load 후 사용 가능. 실패 시 false) */
+function ensureKakao(key) {
+  if (!key) return Promise.resolve(false);
+  if (window.kakao?.maps && kakaoReadyKey === key) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const js = document.createElement("script");
+    /* 스크립트 태그 동적 삽입이라 file://·localhost·웹서버 모두 동일하게 동작 */
+    js.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(key)}&libraries=services&autoload=false`;
+    js.onload = () => {
+      try {
+        kakao.maps.load(() => { kakaoReadyKey = key; resolve(true); });
+      } catch (_) { resolve(false); }
+    };
+    js.onerror = () => resolve(false);
+    document.head.appendChild(js);
+  });
+}
+
+/* 지오코딩 큐 — 공급자 관계없이 초당 1회 수준으로 순차 처리 */
+const geoQueue = [];
+let geoBusy = false;
+function enqueueGeocode(task) {
+  geoQueue.push(task);
+  void runGeoQueue();
+}
+async function runGeoQueue() {
+  if (geoBusy) return;
+  geoBusy = true;
+  while (geoQueue.length) {
+    await geoQueue.shift()();
+    await new Promise((r) => setTimeout(r, 1100));
+  }
+  geoBusy = false;
+}
+
+/* 설정 저장 후 지도가 아직 안 뜬 동선 섹션을 즉시 재시도 — 재검색 없이 렌더링 */
+const routeMapRetries = [];
+function retryRouteMaps() {
+  const pend = routeMapRetries.splice(0);
+  pend.forEach((fn) => { try { fn(); } catch (_) { /* 재시도 실패는 무시 */ } });
+}
+
+/** 카카오 장소(POI) 검색 → 좌표 (services 라이브러리) */
+function kakaoSearch(q) {
+  return new Promise((resolve) => {
+    try {
+      const places = new kakao.maps.services.Places();
+      places.keywordSearch(q, (data, status) => {
+        if (status === kakao.maps.services.Status.OK && data?.length && data[0].y && data[0].x) {
+          resolve({ lat: +data[0].y, lng: +data[0].x });
+        } else resolve(null);
+      });
+    } catch (_) { resolve(null); }
+  });
+}
+
+/** Nominatim 지오코딩 → 좌표 (카카오 검색 실패 시 폴백) */
+async function nominatimSearch(q) {
+  try {
+    const u = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=kr&accept-language=ko&q=${encodeURIComponent(q)}`;
+    const res = await fetch(u);
+    const arr = await res.json();
+    if (Array.isArray(arr) && arr.length && arr[0].lat && arr[0].lon) {
+      return { lat: +arr[0].lat, lng: +arr[0].lon };
+    }
+  } catch (_) { /* 폴백 실패 */ }
+  return null;
+}
+
+/** 장소 검색어 → 좌표 (캐시 우선 → 카카오 POI 검색 → Nominatim 폴백, 최종 null) */
+async function geocodePoint(pt) {
+  const cache = loadGeoCache();
+  if (cache[pt.query]) return cache[pt.query];
+  const kakaoReady = !!(window.kakao && window.kakao.maps && kakaoReadyKey);
+  const kakaoFirst = kakaoReady ? [pt.queryAlt, pt.query].filter(Boolean) : [];   /* 카카오는 장소명이 유리 */
+  const nomiFirst = [pt.query, pt.queryAlt].filter(Boolean);        /* Nominatim은 주소가 유리 */
+  const seen = new Set();
+  for (const q of kakaoFirst) {
+    if (seen.has(q)) continue;
+    seen.add(q);
+    const hit = await kakaoSearch(q);
+    if (hit) { cache[pt.query] = hit; saveGeoCache(cache); return hit; }
+  }
+  for (const q of nomiFirst) {
+    if (seen.has(q)) continue;
+    seen.add(q);
+    const hit = await nominatimSearch(q);
+    if (hit) { cache[pt.query] = hit; saveGeoCache(cache); return hit; }
+  }
+  return null;
+}
+
+/** [📋 이번 나들이 전체 동선 요약] 섹션: 지도 + 요약 리스트 (초대장과 같은 route 데이터) */
+function renderRouteSection(content, answer) {
+  const pts = answer.route.points;
+  const resolved = new Array(pts.length).fill(null);   /* 지오코딩으로 확정된 좌표(카카오맵 링크 계산용) */
+  /** 카카오맵 웹 링크 — 좌표가 있으면 지도 핀 링크, 없으면 장소 검색 */
+  const kakaoLinkFor = (i) => {
+    const p = pts[i];
+    const c = resolved[i];
+    return c
+      ? `https://map.kakao.com/link/map/${encodeURIComponent(p.name)},${c.lng},${c.lat}`
+      : `https://map.kakao.com/?q=${encodeURIComponent(p.name || p.query)}`;
+  };
+  const sec = el("section", "route-section");
+
+  const head = el("div", "route-head");
+  head.innerHTML = `<h2>📋 이번 나들이 전체 동선 요약</h2>`;
+  const inviteBtn = el("button", "btn btn-sm", "💌 초대장 보기");
+  inviteBtn.addEventListener("click", () => openInvite(answer.invite));
+  head.appendChild(inviteBtn);
+  sec.appendChild(head);
+
+  /* 지도 영역 */
+  const mapWrap = el("div", "route-map-wrap");
+  const mapDiv = el("div", "route-map");
+  mapDiv.id = `route-map-${Math.random().toString(36).slice(2)}`;
+  const mapHint = el("div", "route-map-hint", "🗺️ 장소 좌표를 확인하는 중…");
+  mapWrap.appendChild(mapDiv);
+  mapWrap.appendChild(mapHint);
+  sec.appendChild(mapWrap);
+
+  /* 요약 리스트 (모달을 열지 않아도 바로 보임) — 각 행에 카카오맵 웹 바로가기 버튼 */
+  const list = el("ol", "route-list");
+  const rowEls = pts.map((p, i) => {
+    const li = el("li", "route-row");
+    li.innerHTML = `
+      <span class="route-no">${p.no}</span>
+      <span class="route-phase">${esc(p.phase)}</span>
+      <span class="route-name">${esc(p.emoji)} ${esc(p.name)}</span>
+      <span class="route-addr">${esc(p.address || p.query)}</span>
+      <span class="route-barrier">${p.barrier.map((b) => `<i>${esc(b)}</i>`).join("")}</span>`;
+    const mapLink = el("button", "route-maplink", "🗺️ 카카오맵에서 보기");
+    mapLink.type = "button";
+    mapLink.title = "카카오맵 웹에서 이 장소 바로 보기 (새 창)";
+    mapLink.addEventListener("click", (ev) => {
+      ev.stopPropagation();   /* 행 전체 클릭(지도 포커스)과 분리 */
+      window.open(kakaoLinkFor(i), "_blank", "noopener");
+    });
+    li.appendChild(mapLink);
+    list.appendChild(li);
+    return li;
+  });
+  sec.appendChild(list);
+  content.appendChild(sec);
+
+  /* 지도 초기화 — 실패 사유별 안내 + ⚙️ 설정 저장 시 즉시 재시도(routeMapRetries) */
+  let mapReady = false;
+  const placed = new Array(pts.length).fill(null);   /* 방문 순서 인덱스 → 좌표 */
+
+  const failMap = (msg) => {
+    mapWrap.classList.add("route-map-off");
+    mapHint.style.display = "";
+    mapHint.textContent = msg;
+    routeMapRetries.push(() => initMap(true));
+  };
+
+  function initMap(retry = false) {
+    if (mapReady) return;
+    if (retry) {
+      mapWrap.classList.remove("route-map-off");
+      mapHint.style.display = "";
+      mapHint.textContent = "🗺️ 장소 좌표를 확인하는 중…";
+    }
+    const key = loadSettings().keys?.mapKakao;
+    if (!key) {
+      failMap("🗺️ 설정(⚙️)에서 카카오 지도 JavaScript 키를 입력하면 동선 지도가 표시돼요.");
+      return;
+    }
+    ensureKakao(key).then((ok) => {
+      if (mapReady) return;
+      if (!ok) {
+        failMap("🗺️ 카카오 지도 SDK를 불러오지 못했어요(네트워크·차단). 각 장소의 [카카오맵에서 보기]로 확인해 주세요.");
+        return;
+      }
+      let map = null;
+      try {
+        map = new kakao.maps.Map(mapDiv, { center: new kakao.maps.LatLng(36.4, 127.9), level: 13 });
+      } catch (e) {
+        failMap(
+          "🗺️ 카카오 지도 인증 실패 — ⚙️ 설정에서 JavaScript 키(REST 키 아님)를 다시 확인하고, " +
+          "새 지도 콘솔 키라면 플랫폼에 웹 도메인(http://localhost:8899) 등록이 필요할 수 있어요. " +
+          "file:// 대신 node serve.mjs 실행을 권장해요.",
+        );
+        return;
+      }
+      mapReady = true;
+      mapWrap.classList.remove("route-map-off");
+      mapHint.style.display = "";
+      mapHint.textContent = "🗺️ 장소 좌표를 확인하는 중…";
+
+      const infoWin = new kakao.maps.InfoWindow({ removable: true });
+      const line = new kakao.maps.Polyline({
+        path: [], strokeColor: "#0f766e", strokeWeight: 3,
+        strokeStyle: "dash", strokeOpacity: 0.85, zIndex: 1,
+      });
+      line.setMap(map);
+
+      const popupHtml = (p) => `
+        <div class="route-popup">
+          <b>${p.no}. ${esc(p.name)}</b>
+          <span class="popup-addr">📍 ${esc(p.address || p.query)}</span>
+          <span class="popup-badges">${p.barrier.map((b) => `<i>✅ ${esc(b)}</i>`).join("")}</span>
+        </div>`;
+
+      /* 방문 순서대로 폴리라인 갱신 + 배치된 핀 기준 화면 맞춤 */
+      const redraw = () => {
+        const cs = placed.filter(Boolean);
+        line.setPath(cs.map((c) => new kakao.maps.LatLng(c.lat, c.lng)));
+        if (!cs.length) return;
+        if (cs.length === 1) {
+          map.setCenter(new kakao.maps.LatLng(cs[0].lat, cs[0].lng));
+          map.setLevel(8);
+          return;
+        }
+        const currentBounds = new kakao.maps.LatLngBounds();
+        cs.forEach((c) => currentBounds.extend(new kakao.maps.LatLng(c.lat, c.lng)));
+        map.setBounds(currentBounds);
+      };
+
+      /* 행·핀 공용 포커스: 지도 이동 + 말풍선 (핀 없으면 카카오맵 웹 링크 폴백) */
+      const focus = (i) => {
+        list.querySelectorAll(".route-row.active").forEach((x) => x.classList.remove("active"));
+        rowEls[i].classList.add("active");
+        const c = placed[i];
+        if (!c) { window.open(kakaoLinkFor(i), "_blank", "noopener"); return; }
+        const pos = new kakao.maps.LatLng(c.lat, c.lng);
+        map.panTo(pos);
+        infoWin.setContent(popupHtml(pts[i]));
+        infoWin.setPosition(pos);
+        infoWin.open(map, pos);
+      };
+
+      const place = (i, c) => {
+        const pos = new kakao.maps.LatLng(c.lat, c.lng);
+        /* 순번 핀: HTML 커스텀 오버레이(클릭 가능) */
+        const node = document.createElement("div");
+        node.className = "route-pin kakao";
+        node.innerHTML = `<span>${pts[i].no}</span>`;
+        node.addEventListener("click", () => focus(i));
+        const ov = new kakao.maps.CustomOverlay({ position: pos, content: node, yAnchor: 1, zIndex: 10 });
+        ov.setMap(map);
+        placed[i] = c;
+        resolved[i] = c;
+        redraw();
+      };
+
+      /* 좌표가 있는 장소(실시간 데이터)는 즉시 배치, 없으면 지오코딩 큐로 보완 */
+      pts.forEach((p, i) => {
+        if (p.lat && p.lng) { place(i, { lat: p.lat, lng: p.lng }); return; }
+        enqueueGeocode(async () => {
+          const hit = await geocodePoint(p);
+          if (hit) place(i, hit);
+          else rowEls[i].classList.add("unmapped");
+          if (!geoQueue.length) {
+            const done = placed.filter(Boolean).length;
+            if (done === pts.length) mapHint.style.display = "none";
+            else mapHint.textContent = done
+              ? `🗺️ ${pts.length - done}곳은 좌표를 찾지 못해 지도에서 제외됐어요`
+              : "🗺️ 좌표를 찾지 못했어요 — 요약 리스트로 확인해 주세요.";
+          }
+        });
+      });
+
+      /* 리스트 행 클릭 → 지도 이동 + 말풍선 */
+      rowEls.forEach((li, i) => li.addEventListener("click", () => focus(i)));
+    });
+  }
+  initMap();
+}
+
+function renderChips(container, items) {
+  container.innerHTML = "";
+  if (!items.length) { container.classList.remove("visible"); return; }
+  container.classList.add("visible");
+  const label = el("div", "chips-label", "조건을 바꿔 다시 물어볼 수 있어요");
+  container.appendChild(label);
+  items.forEach((t) => {
+    const b = el("button", "chip", t);
+    b.type = "button";
+    b.disabled = busy;
+    b.addEventListener("click", () => submit(t));
+    container.appendChild(b);
+  });
+}
+
+function renderQuickChips() {
+  refs.quick.innerHTML = "";
+  const label = el("div", "chips-label", "👇 눌러서 바로 물어보세요");
+  refs.quick.appendChild(label);
+  const row = el("div", "quick-row");
+  [
+    "부모님 모시고 가기 좋은 부산 바다 데크길 코스",
+    "비 오는 날 휠체어로 편한 실내 나들이",
+    "평지 위주 맛집+산책 반나절 코스",
+    "제주에서 휠체어로 가볼 만한 곳 알려줘",
+  ].forEach((q) => {
+    const b = el("button", "chip chip-quick", q);
+    b.type = "button";
+    b.dataset.q = q;
+    row.appendChild(b);
+  });
+  refs.quick.appendChild(row);
+}
+
+function showWelcome() {
+  const m = el("div", "msg agent");
+  m.innerHTML = `
+    <div class="avatar" aria-hidden="true">🌿</div>
+    <div class="bubble">
+      <div class="content"></div>
+      <div class="chips"></div>
+    </div>`;
+  refs.chat.appendChild(m);
+  renderAnswer(
+    m.querySelector(".content"),
+    m.querySelector(".chips"),
+    uiAgent.welcome()
+  );
+  autoscroll();
+}
+
+function resetChat() {
+  refs.chat.innerHTML = "";
+  showWelcome();
+  toast("대화를 새로 시작했어요.");
+}
+
+/* ============================ 초대장 ============================ */
+
+let currentInvite = "";
+
+function openInvite(text) {
+  currentInvite = text;
+  const body = $("#invitePreview");
+  body.innerHTML = `<div class="invite-card">
+    <div class="invite-card-head">💌 오픈나들이 · 가족 초대장</div>
+    <div class="invite-card-body">${esc(text)}</div>
+  </div>`;
+  $("#inviteText").value = text;
+  openModal(refs.inviteModal);
+}
+
+function copyInvite() {
+  const text = $("#inviteText").value;
+  const done = () => toast("복사 완료! 카카오톡에 붙여넣어 주세요. 📋");
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+  } else fallbackCopy(text, done);
+}
+
+function fallbackCopy(text, done) {
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position = "fixed"; ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand("copy"); done(); } catch (_) { toast("복사에 실패했어요. 텍스트를 직접 선택해 주세요."); }
+  ta.remove();
+}
+
+/* ============================ 설정 ============================ */
+
+function updateBadge() {
+  refs.badge.textContent = uiAgent.sourceLabel();
+}
+
+function openSettings() {
+  fillSettingsForm(loadSettings());
+  $("#testResult").hidden = true;
+  openModal(refs.settingsModal);
+}
+
+function fillSettingsForm(s) {
+  $("#useLive").checked = !!s.useLive;
+  $("#keyTour").value = s.keys?.searchOpenTouristSpots || "";
+  $("#keyTrail").value = s.keys?.searchAccessibleTrails || "";
+  $("#keyBiz").value = s.keys?.searchStepFreeRestaurants || "";
+  $("#keyMap").value = s.keys?.mapKakao || "";
+}
+
+function readSettingsForm() {
+  return {
+    useLive: $("#useLive").checked,
+    keys: {
+      searchOpenTouristSpots: $("#keyTour").value.trim(),
+      searchAccessibleTrails: $("#keyTrail").value.trim(),
+      searchStepFreeRestaurants: $("#keyBiz").value.trim(),
+      mapKakao: $("#keyMap").value.trim(),
+    },
+  };
+}
+
+async function testConnection() {
+  const s = readSettingsForm();
+  const box = $("#testResult");
+  box.hidden = false;
+  box.style.display = "block";
+  const key = s.keys.searchOpenTouristSpots;
+  if (!key) { box.textContent = "⚠️ 테스트할 관광공사 API 키를 먼저 입력해 주세요."; return; }
+  box.textContent = "공공데이터포털 연결 테스트 중…";
+
+  const qs = new URLSearchParams({
+    serviceKey: key, numOfRows: "1", pageNo: "1",
+    MobileOS: "ETC", MobileApp: "OpenNatri",
+    keyword: "무장애", _type: "json",
+  });
+
+  /* 브라우저 직접 호출 → 프록시 → JSONP 순차 시도(tools.fetchPublicApi)
+     테스트 대상: [개발계정]한국관광공사_무장애 여행 정보 (KorWithService2) — 앱 라이브 경로와 동일 */
+  try {
+    const { text, via } = await fetchPublicApi("B551011/KorWithService2/searchKeyword2", qs);
+    let json = null;
+    try { json = JSON.parse(text); } catch (_) {}
+    const gwErr = json?.OpenAPI_ServiceResponse?.cmmMsgHeader
+      || (json?.response?.header && json.response.header.resultMsg !== "OK" ? json.response.header : null);
+    if (gwErr?.returnReasonCode || gwErr?.resultCode) {
+      const code = gwErr.returnReasonCode || gwErr.resultCode;
+      const msg = gwErr.returnAuthMsg || gwErr.resultMsg || gwErr.errMsg || "";
+      const hint = {
+        "22": "요청 한도 초과(개발계정 일 한도 확인)",
+        "30": "이 키가 무장애여행(KorWithService2)에 등록되지 않음 — 재발급 전 옛 키인지, 승인 후 1~2시간 경과했는지 확인",
+        "31": "활용신청·승인 상태 확인",
+        "32": "접근 거부",
+        "33": "인증키 오류",
+      }[code] || "키 발급·활용신청 상태 확인";
+      box.textContent = `⚠️ 게이트웨이 응답 [${code}] ${msg} — ${hint}. (경로: ${via})`;
+    } else if (json?.response?.header?.resultMsg === "OK") {
+      const n = json?.response?.body?.totalCount ?? "?";
+      box.textContent = `✅ 인증키 유효(${via})! 실시간 조회 준비 완료 — 무장애여행 검색 결과 ${n}건 수신 확인.`;
+    } else {
+      box.textContent = `⚠️ 응답 확인 필요(${via}): ${String(text).slice(0, 120)}…`;
+    }
+  } catch (e) {
+    /* 모든 경로 실패 — 주소창 직접 테스트 안내.
+       ⚠️ 보안: 키가 포함된 URL은 화면에 표시하지 않고 복사 버튼(클립보드)으로만 전달한다. */
+    box.textContent = "";
+    box.appendChild(el("div", null,
+      `⚠️ 호출 경로 3개(직접·프록시·JSONP) 모두 실패(${e.message}). ` +
+      `아래 버튼으로 '주소창 테스트 URL'을 복사한 뒤, 본인 브라우저의 주소창에 붙여넣어 열어 보세요 — ` +
+      `데이터가 보이면 키는 유효한 것이고, 앱 환경의 네트워크 제한 문제입니다.`));
+    const masked = "https://apis.data.go.kr/B551011/KorWithService2/searchKeyword2?serviceKey=●●●(복사 버튼 사용)&numOfRows=1&MobileOS=ETC&MobileApp=OpenNatri&keyword=무장애&_type=json";
+    box.appendChild(el("div", "step-note", `테스트 URL 형태: ${masked}`));
+    const rawUrl = `https://apis.data.go.kr/B551011/KorWithService2/searchKeyword2?serviceKey=${encodeURIComponent(key)}&numOfRows=1&pageNo=1&MobileOS=ETC&MobileApp=OpenNatri&keyword=${encodeURIComponent("무장애")}&_type=json`;
+    const btn = el("button", "btn btn-ghost", "📋 주소창 테스트 URL 복사 (키는 화면에 표시되지 않음)");
+    btn.addEventListener("click", () => {
+      const done = () => toast("테스트 URL 복사 완료 — 브라우저 주소창에 붙여넣어 열어 보세요");
+      if (navigator.clipboard?.writeText) navigator.clipboard.writeText(rawUrl).then(done).catch(() => fallbackCopy(rawUrl, done));
+      else fallbackCopy(rawUrl, done);
+    });
+    box.appendChild(btn);
+  }
+}
+
+function closeModal(id) {
+  const m = document.getElementById(id);
+  if (m) { m.hidden = true; m.style.display = "none"; } // 인라인까지 막아 어떤 CSS와도 충돌 없음
+}
+
+function openModal(m) {
+  m.hidden = false;
+  m.style.display = ""; // 인라인 숨김 해제 → CSS(.modal-backdrop)가 표시 담당
+}
+
+/* ============================ 토스트 ============================ */
+
+let toastTimer = null;
+function toast(msg) {
+  refs.toast.textContent = msg;
+  refs.toast.hidden = false; refs.toast.style.display = "block";
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { refs.toast.hidden = true; refs.toast.style.display = "none"; }, 2600);
+}
+
+/* ===================== 일정·시간대 설정 (아코디언 + 유연 스케줄링) ===================== */
+/**
+ * 모바일 터치 최적화 일정 설정 컴포넌트.
+ *  - 평소: 입력창 위 "⚙️ 일정 및 시간대 상세 설정" 한 줄 필만 표시
+ *  - 클릭: 아래로 아코디언 펼침 → [당일/1박 2일] 탭 + 듀얼 썸 타임라인 슬라이더(기존 디자인) + 옵션
+ *  - 1박 2일: [1일차][2일차] 탭으로 슬라이더를 각각 조절 + 🏨 휠체어 숙소 추천 체크박스
+ *  - 활동은 시간대 칸에 고정하지 않고 [식사 포함][카페 휴식 포함] 옵션만 선택 —
+ *    어떤 장소를 배치할지는 에이전트가 사용자 발화(테마·동행)에 맞춰 유연하게 조립한다
+ */
+const TB_MIN = 0, TB_MAX = 24;
+let schedState = {
+  tripType: "day",            /* "day" | "overnight" */
+  activeDay: 1,               /* 패널에서 조작 중인 일차 (전송 시 제외) */
+  d1: { s: 0, e: 24 },
+  d2: { s: 0, e: 24 },
+  meal: true,                 /* 식사 포함 (기본 ON) */
+  cafe: true,                 /* 카페 휴식 포함 (기본 ON) */
+  hotel: true,                /* 1박 2일: 휠체어 숙소 추천 포함 */
+};
+let tbExpanded = false;
+
+const fmtHour = (h) => `${String(h).padStart(2, "0")}:00`;
+const activeRange = () => (schedState.activeDay === 2 ? schedState.d2 : schedState.d1);
+
+function loadSchedState() {
+  try {
+    const r = JSON.parse(localStorage.getItem("opennatri.schedule.v3") || "null");
+    if (r && r.d1 && Number.isFinite(r.d1.s) && r.d1.e > r.d1.s) {
+      schedState = { ...schedState, ...r, activeDay: 1 };
+    }
+  } catch (_) { /* 저장소 미사용 환경 */ }
+}
+
+function saveSchedState() {
+  try { localStorage.setItem("opennatri.schedule.v3", JSON.stringify({ ...schedState, activeDay: 1 })); } catch (_) {}
+}
+
+/* 아코디언 펼치기/접기 */
+function setExpanded(v) {
+  tbExpanded = !!v;
+  const p = document.getElementById("tbPanel");
+  if (p) p.hidden = !tbExpanded;
+  const t = document.getElementById("timebarToggle");
+  if (t) {
+    t.setAttribute("aria-expanded", String(tbExpanded));
+    t.classList.toggle("open", tbExpanded);
+  }
+}
+
+function setRange(s, e) {
+  const r = activeRange();
+  s = Math.max(TB_MIN, Math.min(TB_MAX, Math.round(Number(s) || TB_MIN)));
+  e = Math.max(TB_MIN, Math.min(TB_MAX, Math.round(Number(e) || TB_MAX)));
+  if (e - s < 1) { if (s >= TB_MAX) s = TB_MAX - 1; e = s + 1; }
+  r.s = s; r.e = e;
+  saveSchedState();
+  renderSchedule();
+}
+
+function hourFromEvent(ev) {
+  const rect = $("#tbTrack").getBoundingClientRect();
+  const ratio = Math.min(1, Math.max(0, (ev.clientX - rect.left) / rect.width));
+  return TB_MIN + Math.round(ratio * (TB_MAX - TB_MIN));
+}
+
+function dragThumb(which, ev) {
+  const r = activeRange();
+  const h = hourFromEvent(ev);
+  if (which === "s") setRange(Math.min(h, r.e - 1), r.e);
+  else setRange(r.s, Math.max(h, r.s + 1));
+}
+
+function renderSchedule() {
+  const r = activeRange();
+  const overnight = schedState.tripType === "overnight";
+
+  /* 슬라이더 (현재 일차 범위) */
+  const pct = (h) => ((h - TB_MIN) / (TB_MAX - TB_MIN)) * 100;
+  $("#tbFill").style.left = pct(r.s) + "%";
+  $("#tbFill").style.width = Math.max(0, pct(r.e) - pct(r.s)) + "%";
+  const tS = $("#tbThumbS"), tE = $("#tbThumbE");
+  tS.style.left = pct(r.s) + "%";
+  tE.style.left = pct(r.e) + "%";
+  for (const [btn, h] of [[tS, r.s], [tE, r.e]]) {
+    btn.setAttribute("aria-valuenow", String(h));
+    btn.setAttribute("aria-valuetext", fmtHour(h));
+  }
+
+  /* 탭·체크박스 상태 */
+  document.querySelectorAll(".tb-tab").forEach((t) =>
+    t.classList.toggle("active", t.dataset.trip === schedState.tripType));
+  document.querySelectorAll(".tb-daytab").forEach((t) =>
+    t.classList.toggle("active", Number(t.dataset.day) === schedState.activeDay));
+  $("#tbDayRow").hidden = !overnight;
+  if ($("#tbHotel").checked !== !!schedState.hotel) $("#tbHotel").checked = !!schedState.hotel;
+
+  /* 옵션 칩 활성 표시 */
+  document.querySelectorAll("#tbChips .tb-chip").forEach((c) => {
+    const on = c.dataset.opt === "meal" ? schedState.meal : schedState.cafe;
+    c.classList.toggle("active", on);
+    c.setAttribute("aria-pressed", String(on));
+  });
+
+  /* 실시간 요약 문구 */
+  const optBits = [schedState.meal ? "식사 포함" : "식사 제외", schedState.cafe ? "카페 포함" : null].filter(Boolean);
+  const rangeText = overnight
+    ? `1일차 ${fmtHour(schedState.d1.s)}~${fmtHour(schedState.d1.e)} / 2일차 ${fmtHour(schedState.d2.s)}~${fmtHour(schedState.d2.e)}`
+    : `${fmtHour(r.s)}~${fmtHour(r.e)}`;
+  const hotelBit = overnight ? (schedState.hotel ? " · 숙소 추천 포함" : " · 숙소 제외") : "";
+  $("#tbSummary").textContent =
+    `${overnight ? "1박 2일" : "당일"} 코스 · ${rangeText} · ${optBits.join(", ")}${hotelBit}`;
+
+  /* 접힌 상태 한 줄 요약 (예: 00:00~24:00 · 식사+카페) */
+  const head = document.getElementById("tbHeadSummary");
+  if (head) {
+    const shortOpts = [
+      schedState.meal ? "식사" : null,
+      schedState.cafe ? "카페" : null,
+      overnight && schedState.hotel ? "숙소" : null,
+    ].filter(Boolean).join("+");
+    const headRange = overnight
+      ? `${fmtHour(schedState.d1.s)}~${fmtHour(schedState.d1.e)}+${fmtHour(schedState.d2.s)}~${fmtHour(schedState.d2.e)}`
+      : `${fmtHour(r.s)}~${fmtHour(r.e)}`;
+    head.textContent = `${headRange}${shortOpts ? " · " + shortOpts : ""}`;
+  }
+}
+
+function bindThumb(btn, which) {
+  let dragging = false;
+  btn.addEventListener("pointerdown", (ev) => {
+    ev.preventDefault();
+    dragging = true;
+    try { btn.setPointerCapture(ev.pointerId); } catch (_) { /* 미지원 환경 */ }
+  });
+  btn.addEventListener("pointermove", (ev) => { if (dragging) dragThumb(which, ev); });
+  const stop = () => { dragging = false; };
+  btn.addEventListener("pointerup", stop);
+  btn.addEventListener("pointercancel", stop);
+  /* 키보드 접근: 화살표로 1시간씩 조절 */
+  btn.addEventListener("keydown", (ev) => {
+    const d = ev.key === "ArrowRight" ? 1 : ev.key === "ArrowLeft" ? -1 : 0;
+    if (!d) return;
+    ev.preventDefault();
+    const r = activeRange();
+    if (which === "s") setRange(Math.min(r.s + d, r.e - 1), r.e);
+    else setRange(r.s, Math.max(r.e + d, r.s + 1));
+  });
+}
+
+function initScheduleBar() {
+  loadSchedState();
+  /* 눈금 (00~24, 2시간 간격) */
+  const ticks = $("#tbTicks");
+  for (let h = TB_MIN; h <= TB_MAX; h += 2) {
+    const t = el("span", "tb-tick", String(h).padStart(2, "0"));
+    t.style.left = ((h - TB_MIN) / (TB_MAX - TB_MIN)) * 100 + "%";
+    ticks.appendChild(t);
+  }
+  /* 옵션 칩: 식사 포함 / 카페 휴식 포함 (활동은 시간대에 고정하지 않음) */
+  const chipBox = $("#tbChips");
+  [
+    { key: "meal", label: "🍚 식사 포함" },
+    { key: "cafe", label: "☕ 카페 휴식 포함" },
+  ].forEach((o) => {
+    const c = el("button", "chip tb-chip", o.label);
+    c.type = "button";
+    c.dataset.opt = o.key;
+    c.disabled = busy;
+    c.setAttribute("aria-pressed", "false");
+    c.addEventListener("click", () => {
+      if (busy) return;
+      schedState[o.key] = !schedState[o.key];
+      saveSchedState();
+      renderSchedule();
+    });
+    chipBox.appendChild(c);
+  });
+  /* 썸 드래그 — 터치·펜·마우스 공용 Pointer Events */
+  bindThumb($("#tbThumbS"), "s");
+  bindThumb($("#tbThumbE"), "e");
+  /* 트랙을 직접 탭하면 가까운 썸이 이동 */
+  $("#tbTrack").addEventListener("pointerdown", (ev) => {
+    if (ev.target.closest?.(".tb-thumb")) return;
+    const r = activeRange();
+    const h = hourFromEvent(ev);
+    if (h < (r.s + r.e) / 2) dragThumb("s", ev); else dragThumb("e", ev);
+  });
+  /* 여행 형태 탭: 당일 / 1박 2일 */
+  document.querySelectorAll(".tb-tab").forEach((t) => {
+    t.addEventListener("click", () => {
+      if (busy) return;
+      schedState.tripType = t.dataset.trip;
+      schedState.activeDay = 1;
+      saveSchedState();
+      renderSchedule();
+    });
+  });
+  /* 일차 탭 (1박 2일): 일차별 슬라이더 전환 */
+  document.querySelectorAll(".tb-daytab").forEach((t) => {
+    t.addEventListener("click", () => {
+      if (busy) return;
+      schedState.activeDay = Number(t.dataset.day);
+      renderSchedule();
+    });
+  });
+  /* 숙소 체크박스 (1박 2일) */
+  $("#tbHotel").addEventListener("change", (e) => {
+    schedState.hotel = e.target.checked;
+    saveSchedState();
+    renderSchedule();
+  });
+  $("#timebarReset").addEventListener("click", () => {
+    schedState = { tripType: "day", activeDay: 1, d1: { s: 0, e: 24 }, d2: { s: 0, e: 24 }, meal: true, cafe: true, hotel: true };
+    saveSchedState();
+    renderSchedule();
+    toast("일정 설정을 기본값(00:00~24:00 · 식사+카페)으로 되돌렸어요.");
+  });
+  /* 토글 + 패널 밖 클릭 시 자동 닫기 */
+  $("#timebarToggle").addEventListener("click", () => setExpanded(!tbExpanded));
+  document.addEventListener("pointerdown", (ev) => {
+    if (!tbExpanded) return;
+    const p = document.getElementById("tbPanel");
+    if (p && !p.contains(ev.target) && ev.target !== $("#timebarToggle") && !$("#timebarToggle").contains(ev.target)) {
+      setExpanded(false);
+    }
+  });
+  setExpanded(false);
+  renderSchedule();
+
+  /* 테스트·자동화용 제어 API (일반 사용 기능에는 영향 없음) */
+  try {
+    window.__opennatri = {
+      setTimeRange: (s, e) => setRange(s, e),
+      getTimeRange: () => ({ ...activeRange() }),
+      setExpanded: (v) => setExpanded(v),
+      isExpanded: () => tbExpanded,
+      setTripType: (t) => { schedState.tripType = t; schedState.activeDay = 1; saveSchedState(); renderSchedule(); },
+      setDay: (n) => { schedState.activeDay = n; renderSchedule(); },
+      setOptions: (o = {}) => {
+        if ("meal" in o) schedState.meal = !!o.meal;
+        if ("cafe" in o) schedState.cafe = !!o.cafe;
+        if ("hotel" in o) schedState.hotel = !!o.hotel;
+        saveSchedState();
+        renderSchedule();
+      },
+      getSchedule: () => JSON.parse(JSON.stringify({
+        tripType: schedState.tripType, d1: schedState.d1, d2: schedState.d2,
+        meal: schedState.meal, cafe: schedState.cafe, hotel: schedState.hotel,
+      })),
+    };
+  } catch (_) { /* window 없는 환경 */ }
+}
+
+
+/* ====== js/main.js ====== */
+/**
+ * main.js — 애플리케이션 진입점
+ */
+
+
+
+
+const agent = new OutingAgent(loadSettings());
+
+init({
+  agentInstance: agent,
+  onSettingsChange: (s) => agent.setSettings(s),
+});
+
+</script>
+</body>
+</html>
