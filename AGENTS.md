@@ -7,39 +7,91 @@ AI 코딩 에이전트(Claude Code, Codex, Cursor 등)가 이 저장소에서 �
 오픈나들이(OpenNadeuli)는 휠체어·보행 약자를 위한 무장애 관광 AI 에이전트 웹앱입니다.
 일상 대화 한마디로 공공 무장애 데이터(한국관광공사 열린관광지, 국립공원공단·지자체 무장애 탐방로, 소상공인 상권정보)를 조합해 헛걸음 없는 나들이 코스를 제안합니다.
 
-- 정적 웹앱: HTML5 + CSS3 + Vanilla JS(ES Modules) — 빌드·외부 라이브러리 없음(오프라인 시연 최적화)
-- 단일 파일 빌드: `node build-standalone.mjs`로 `index.html`·`standalone.html` 생성
-- 정적 서버: `node serve.mjs` (포트 8899, IPv4+IPv6, 캐시 방지, `/proxy/openapi` 프록시 포함)
-- 실행: `http://localhost:8899` 또는 `file://`로 `standalone.html` 직접 열기
+- 구조: 루트(Vanilla JS 정적 앱, 지위 미정 TODO(확인 필요)) + `frontend/`(Vite+React+TypeScript) + `backend/`(Python·FastAPI)
+- 프런트: React 18 + TypeScript + Vite, `http://127.0.0.1:8899` 백엔드 직접 호출 (Vite 프록시 미사용, `VITE_*` 환경변수 미사용)
+- 백엔드: FastAPI + uvicorn, 포트 8899, `/api/health`, `/api/course`, `/api/settings` 엔드포인트
+- 실행: 백엔드 `python3 -m uvicorn app:app --host 127.0.0.1 --port 8899`, 프런트 `cd frontend && npm run dev` (포트 5176)
+- 배포: `vercel.json` (FastAPI 함수 `/api/(.*)` → `/app.py`, 정적 파일 `/frontend/dist/index.html`)
 
 ## 기술 스택
 
-| 영역 | 기술 |
-|------|------|
-| 프론트엔드 | Vanilla JS(ES Modules), HTML5, CSS3 |
-| 빌드 도구 | Node.js 내장 모듈만 사용 (`build-standalone.mjs`) |
-| 정적 서버 | `serve.mjs` (Node.js 내장 `http` + `fs/promises`) |
-| 공공 데이터 | 한국관광공사 무장애여행 API(KorWithService2), 소상공인 상권정보 API(sdsc2) |
-| 지도 | 카카오맵 JS SDK v2 (`dapi.kakao.com/v2/maps/sdk.js`) |
-| 설정 저장 | 브라우저 `localStorage` (`opennatri.settings.v1`) — API 키는 외부 전송 안 함 |
+| 영역 | 기술 | 확인 근거 |
+|------|------|-----------|
+| 프런트엔드 | React 18 + TypeScript + Vite | `frontend/package.json`, `frontend/vite.config.ts` |
+| 빌드 도구 | Vite (`npm run build`) | `frontend/package.json` |
+| 백엔드 | Python + FastAPI + uvicorn | `requirements.txt`, `app.py`, `backend/src/api/routes.py` |
+| 공공 데이터 | 한국관광공사 열린관광지(KorWithService2), 소상공인 상권정보(sdsc2) | `backend/src/services/tools.py` |
+| 환경변수 | `CORS_ORIGINS`, `ENABLE_SETTINGS`, `PORT` (코드에 추가, `.env.example` 미등재) | `app.py`, `backend/src/api/routes.py` |
+| 설정 저장 | 서버 메모리(`os.environ`)만, 파일 미저장, 재시작 시 소멸 | `backend/src/services/tools.py` (`save_settings`) |
+| 도구 목록 | `searchOpenTouristSpots`, `searchAccessibleTrails`, `searchStayHotels`, `searchStepFreeRestaurants` | `backend/src/services/tools.py` (`TOOL_SPECS`) |
+| 지도 | 루트 HTML에 Kakao Maps 참조 (React 프런트에는 미구현) | 루트 `index.html`, `frontend/src/App.tsx` |
+| API 키 (프런트) | `VITE_*` 미사용, `http://127.0.0.1:8899` 하드코딩 | `frontend/src/lib/api.ts` (알려진 문제: 배포 시 실패) |
 
 ## 주요 파일 구조
 
+루트(Vanilla JS 정적 앱, 지위 미정 TODO(확인 필요)):
+
 ```
-index.html            ★ 배포용 단일 실행 파일 (CSS·JS 전부 인라인)
-standalone.html       index.html과 동일한 사본 (file:// 직접 열기용)
-index.template.html   개발용 템플릿 (js/ 모듈 참조 버전, 배포 원본)
-styles.css            가독성 중심 UI (본문 18px+, 고대비, 큰 터치 영역, 반응형)
-serve.mjs             의존성 없는 정적 서버 + /proxy/openapi 프록시
-build-standalone.mjs  js/ 소스를 인라인해 단일 HTML 생성
-capture-snapshot.mjs  실측 데이터 스냅샷 캡처 도구 (인증키 미포함)
+index.html              단일 실행 파일 (CSS·JS 인라인) — vercel.json 배포 대상 아님
+index.template.html     개발용 템플릿 (js/ 모듈 참조)
+standalone.html         index.html과 동일한 사본 (file:// 직접 열기용)
+styles.css              가독성 중심 UI
+serve.mjs               정적 서버 + /proxy/openapi·/proxy/kakaomaps 프록시 (포트 8899)
 js/
-  data.js     내장 샘플 데이터 (관광지/탐방로/식당/호텔, 배지 정의, 지역 좌표)
-  nlu.js      규칙 기반 의도 분석기 (자연어 → 지역/테마/동행/일정 파라미터)
-  tools.js    4개 도구 정의·라이브 API 커넥터·필터링·제외 근거·설정 저장소
-  agent.js    파이프라인 오케스트레이터 (계획→호출→체이닝→조립, 후속 질문 맥락 유지)
-  ui.js       채팅·타임라인·도구 칩·카드·초대장·설정 모달 렌더링
-  main.js     진입점 — 에이전트·UI 초기화
+  data.js     내장 샘플 데이터 (관광지/탐방로/식당/호텔)
+  nlu.js      규칙 기반 의도 분석기
+  tools.js    도구 정의·라이브 API 커넥터·필터링·설정 저장소
+  agent.js    파이프라인 오케스트레이터
+  ui.js       채팅·타임라인·도구 칩·카드·초대장·설정 렌더링
+  main.js     진입점
+```
+
+`frontend/`(Vite+React+TypeScript):
+
+```
+package.json            vite, react, typescript, build:vercel 스크립트
+vite.config.ts          Vite 설정 (포트 5176 dev / 5190 preview)
+index.html              Vite 엔트리 HTML
+src/
+  App.tsx               React 챗봇 컴포넌트 (postCourse로 백엔드 호출)
+  lib/api.ts            백엔드 API 호출 (API_BASE 하드코딩, VITE_* 미사용)
+  main.tsx              React 진입점
+  types.ts              CourseRequest/CourseResponse/CourseAnswer 등 타입 정의
+  styles.css            스타일
+```
+
+`backend/`(Python·FastAPI):
+
+```
+app.py                  FastAPI 진입점 (포트 8899, CORS_ORIGINS, 정적 파일 서빙)
+requirements.txt        fastapi, uvicorn, python-dotenv, httpx, pydantic
+test_backend.py         백엔드 로직 테스트 스크립트
+src/
+  api/
+    routes.py           /api/health, /api/course, /api/settings 라우트
+  data/
+    sample_data.py      내장 샘플 데이터 (filter_spots/trails/restaurants/hotels)
+  services/
+    agent.py            AI 에이전트 파이프라인 (OutingAgent)
+    nlu.py              의도 분석기
+    tools.py            공공 API 도구 스펙, 라이브/내장 폴백, 설정 저장(os.environ)
+```
+
+`docs/`:
+```
+docs/기획서.md          제품 기획 요약
+docs/specs/             (없음 — Spec 작성 필요 시 작성)
+docs/adr/               (없음 — ADR 작성 필요 시 작성)
+```
+
+지원 파일:
+```
+.env.example            API 키 템플릿 (키 이름만, 값 없음)
+.gitignore              .env, node_modules, dist 등 제외
+vercel.json             Vercel 배포 설정 (FastAPI 함수 + 정적 파일)
+AGENTS.md               이 파일 (에이전트 지침)
+README.md               개요·실행법 (사람 독자)
+CONVERSATION_LOG.md     작업 기록
 ```
 
 ## Spec 먼저, 구현은 그다음
@@ -79,33 +131,44 @@ js/
 - `.env`·`*.orig`·`node_modules`·`dist`는 `.gitignore`에 둡니다.
 - 비밀값을 문서·로그에 적지 않습니다(값 자체를 옮기지 않습니다).
 - 이 저장소를 GitHub에 올릴 때는 `.env`를 반드시 제외하고, `.env.example`만 포함합니다.
+- API 키는 **서버 메모리(`os.environ`)에만 저장**되며, 파일에는 저장되지 않습니다. 서버 재시작 시 소멸합니다(Vercel 서버리스 환경에서 유지 여부는 확인 불가).
+- 프런트(`frontend/src/lib/api.ts`)는 `VITE_*` 환경변수를 사용하지 않고 `http://127.0.0.1:8899`를 하드코딩하고 있습니다. 이는 **배포 시 API 호출 실패 결함**이며, 문서 수정 PR에서는 코드를 수정하지 않고 PR 설명에 별도 제안으로 기록합니다(상대경로 `/api` 안 vs `VITE_API_BASE` 환경변수안 비교).
 
 ## 로깅 원칙
 
-- 예외를 잡을 때 그냥 버리지 않습니다(`except Exception: pass`). 무슨 예외였는지 콘솔/로그로 남깁니다.
+- 예외를 잡을 때 그냥 버리지 않습니다(`except Exception: pass`는 Python 표현). 무슨 예외였는지 콘솔/로그로 남깁니다. 프런트(JS)와 백엔드(Python) 각각에 맞게 로그를 남깁니다.
 - URL·토큰·키 등 자격증명을 로그에 평문으로 남기지 않습니다.
 
 ## 배포
 
-- **Vercel 정적 사이트 배포**: `vercel.json` 설정 포함. GitHub 저장소 연결 후 Vercel에서 자동 배포.
+- **Vercel 배포**: `vercel.json` 설정 포함. GitHub 저장소 연결 후 Vercel에서 자동 배포.
+- 배포 구조: FastAPI 함수(`/api/(.*)` → `/app.py`) + 정적 파일(`/frontend/dist/index.html` SPA 폴백)
 - `.env`는 `.gitignore`로 제외. 실제 API 키는 Vercel 프로젝트 설정의 Environment Variables에 등록.
+- 프런트(`frontend/src/lib/api.ts`)는 `http://127.0.0.1:8899`를 하드코딩하고 있어, Vercel 배포 시 모든 API 호출이 실패합니다. 배포 전 `VITE_API_BASE` 환경변수 도입 또는 상대경로 `/api` 사용으로 수정 필요(문서 수정 PR에서는 코드 미수정, PR 설명에 제안만 기록).
+- 배포 도메인을 `CORS_ORIGINS` 환경변수에 추가해야 프런트·백엔드 간 CORS가 정상 동작합니다.
+- Kakao JS SDK 도메인에 개발 포트와 Vercel 도메인을 등록해야 지도 기능이 정상 동작합니다(지도는 현재 React 프런트 미구현, 루트 HTML에만 참조됨).
 
 ## 완료 기준
 
-- 정적 웹앱: 브라우저 동작 확인 (코스 조회, 지도 렌더링, 초대장 생성 등)
-- 빌드: `node build-standalone.mjs` 실행 후 `index.html`·`standalone.html` 정상 생성
+- 백엔드 API: `GET /api/health` 200, `POST /api/course` 200 + `answer` 구조 반환 (curl/TestClient로 검증됨)
+- 프런트 빌드: `cd frontend && npm run build` (`tsc && vite build`) 성공 (검증됨)
+- 프런트 정적 서빙: 부분 검증 (python `http.server`는 정상, `vite preview`는 이 환경에서 무응답, 원인 미상)
+- 브라우저 렌더링 연동: 미검증 (vite preview 서버 hang으로 Playwright 검증 불가, 원인 미상)
+- 프런트→백엔드 실제 호출: 미검증 (브라우저에서 CORS 원인으로 확인 불가)
+- CORS preflight: `http://127.0.0.1:5188` 허용 확인 (curl로 검증됨), 허용 목록 외 origin 차단 여부는 미검증(허용 목록 외에도 `access-control-allow-origin`이 반환되는 현상 확인, 보안 문제)
 - 검증하지 않은 항목을 "완료"라고 말하지 않습니다.
+- 브라우저 검증이 막히면 원인과 함께 "미검증"으로 표기하고, 우회 검증(대체 서버 등)을 썼다면 우회 사실을 기록합니다.
 
 ## 정보 출처와 라이선스
 
 외부 정보는 공식 원문을 우선 사용하고, 기관명·데이터명·원문 URL·발표 또는 조회 시각을 표시한다.
 
-| 데이터셋 | 기관 | 원문 URL | 라이선스·이용 조건 |
-|---|---|---|---|
-| 한국관광공사 열린관광지 (KorWithService2) | 한국관광공사 | https://www.data.go.kr | 공공누리 (출처 표시 필수) |
-| 소상공인 상권정보 (sdsc2) | 소상공인시장진흥공단 | https://www.data.go.kr | 공공누리 (출처 표시 필수) |
-| 국립공원·지자체 무장애 탐방로 | 국립공원공단·지자체 | — | 데이터셋별 이용약관 확인 필요 |
-| Kakao Maps JavaScript SDK | (주)카카오 | https://apis.map.kakao.com | 카카오 개발자 약관 적용 |
+| 데이터셋 | 기관 | 원문 URL | 라이선스·이용 조건 | 확인 시각 |
+|----------|------|----------|-------------------|-----------|
+| 한국관광공사 열린관광지 (KorWithService2) | 한국관광공사 | https://www.data.go.kr | 공공누리 (출처 표시 필수) | TODO(확인 필요) |
+| 소상공인 상권정보 (sdsc2) | 소상공인시장진흥공단 | https://www.data.go.kr | 공공누리 (출처 표시 필수) | TODO(확인 필요) |
+| 국립공원·지자체 무장애 탐방로 | 국립공원공단·지자체 | — | 데이터셋별 이용약관 확인 필요 | TODO(확인 필요) |
+| Kakao Maps JavaScript SDK | (주)카카오 | https://apis.map.kakao.com | 카카오 개발자 약관 적용 | TODO(확인 필요) |
 
 기상청 자료는 공공누리 표시 유형과 개별 이용 조건을 확인한 뒤 사용한다.
 지도·접근성 데이터는 데이터셋별 이용약관과 라이선스를 확인한다.
@@ -114,13 +177,13 @@ js/
 
 이 프로젝트는 `.agents/skills/` 레지스트리와 프로젝트 루트의 `skills.config.json`을 기본 스킬 구성으로 사용합니다.
 
-### 설치 방법
-- 개별 스킬: `npx --yes skills add <owner/repo> --skill <스킬명> -g`
-- k-skill 번들: `npx --yes skills add NomaDamas/k-skill --all -g`
+### 설치 방법 (변경 제안 — PR 설명에 별도 표시)
 
-### 기본 스킬 목록
-- skills.sh 상위 랭킹: `.agents/skills/skills-sh/skills-rank-all-time-*.md`
-- k-skill 135개 전체: `.agents/skills/k-skill/k-skill-list.md`
-- 설치 명령어 예시: `.agents/skills/skills-sh/install-commands.md`, `.agents/skills/k-skill/install-commands.md`
-
-프로젝트 루트의 `skills.config.json`에 기본 스킬이 미리 등록되어 있습니다. 작업 시작 시 해당 프로젝트의 `skills.config.json`을 확인하고, 없는 스킬은 `.agents/skills/`에서 조회해 추가 설치합니다.
+- 설치 전 **사용자 승인** 필요 (제3자 스킬 전역 설치 금지)
+- 프로젝트 **로컬 설치**만 허용 (`-g` 전역 설치 금지)
+- 버전 고정하여 설치
+- 135개 전체 목록(k-skill)은 컨텍스트 낭비이므로 목록 파일 경로만 안내:
+  - `.agents/skills/k-skill/k-skill-list.md`
+  - `.agents/skills/skills-sh/skills-rank-all-time-1a.md` ~ `1b-2.md`
+  - `.agents/skills/skills-sh/skills-rank-all-time-2a-1.md` ~ `2a-3.md`
+- 프로젝트 루트의 `skills.config.json`에 기본 스킬이 미리 등록되어 있습니다. 작업 시작 시 해당 프로젝트의 `skills.config.json`을 확인하고, 없는 스킬은 `.agents/skills/`에서 조회해 추가 설치합니다.

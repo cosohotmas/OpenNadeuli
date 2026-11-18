@@ -13,7 +13,7 @@
 | 국립공원공단·지자체 무장애 탐방로 API | `searchAccessibleTrails` — **최대 경사도 8% 이하** 데크길 필터링 |
 | 소상공인시장진흥공단 상권정보 API | `searchStepFreeRestaurants` — **출입구 턱 없는** 인근 식당(카페 종목 포함) |
 | 한국관광공사 무장애 숙박 API | `searchStayHotels` — 1박 2일 코스의 **휠체어 이용 가능 숙소(호텔·리조트)**, 숙박 카테고리(contenttypeid=32) |
-| API 키 없이 완벽한 시연 | 실제 공공데이터 스펙과 동일한 구조의 내장 샘플 데이터(부산 해운대·기장 / 서울 / 제주) |
+| 내장 샘플 데이터로 시연 | 실제 공공데이터 스펙과 동일한 구조의 내장 샘플 데이터(부산 해운대·기장 / 서울 / 제주) — 실제 API 키 없이도 코스 추천 화면 확인 가능 ("완벽한 시연"은 아님, 외부 의존 최소화 수준) |
 | 에이전트 추론 과정 시각화 | 채팅 안에 단계별 타임라인 + 도구 호출 JSON 칩 + 제외 근거 표시 |
 | 코스 결과 카드 | 동선 순서(오전→점심→오후) 카드 + 안심 체크포인트 배지 + 한 줄 팁 + 지도 링크 |
 | 일정·시간대 설정 아코디언 (모바일 터치) | 평소 입력창 위 **"⚙️ 일정 및 시간대 상세 설정" 한 줄 필**만 표시, 클릭 시 듀얼 썸 타임라인 슬라이더가 아래로 펼쳐짐. **[당일 코스]/[1박 2일 코스] 탭** — 1박 2일 선택 시 **[1일차]/[2일차]별 슬라이더** + **🏨 휠체어 숙소 추천 체크박스**. 활동은 시간대 칸에 고정하지 않고 **[식사 포함]/[카페 휴식 포함] 옵션**만 선택 — 에이전트가 발화(테마·동행)와 시간 창(끼니·카페)에 맞춰 관광지/산책로/식당/카페/호텔을 유연하게 배치하고 카드에 시간(예: "1일차 09:00 오전")을 표시 |
@@ -23,69 +23,120 @@
 
 ## 2. 기술 스택 & 실행
 
-- **정적 웹앱**: HTML5 + CSS3 + Vanilla JS(ES Modules) — 빌드·외부 라이브러리 없음(오프라인 시연 최적화)
-- 실행 방법 (정적 서버로 열기):
+| 영역 | 기술 | 확인 근거 |
+|------|------|-----------|
+| 프런트엔드 | React 18 + TypeScript + Vite | `frontend/package.json`, `frontend/vite.config.ts` |
+| 백엔드 | Python + FastAPI + uvicorn | `requirements.txt`, `app.py`, `backend/src/api/routes.py` |
+| 빌드 도구 | Vite (`npm run build`) | `frontend/package.json` |
+| 환경변수 | `CORS_ORIGINS`, `ENABLE_SETTINGS`, `PORT` (코드에 추가, `.env.example` 미등재) | `app.py`, `backend/src/api/routes.py` |
+| 공공 데이터 | 한국관광공사 열린관광지(KorWithService2), 소상공인 상권정보(sdsc2) | `backend/src/services/tools.py` |
+| 설정 저장 | 서버 메모리(`os.environ`)만, 파일 미저장, 재시작 시 소멸 | `backend/src/services/tools.py` (`save_settings`) |
 
+### 실행 방법
+
+백엔드 기동:
 ```bash
-cd "오픈나들이- 휠체어·보행 약자를 위한 무장애 관광 AI 에이전트"
-node serve.mjs 8899        # 의존성 없는 내장 서버 (IPv4+IPv6, 캐시 방지)
-# 또는: python3 -m http.server 8899  /  npx serve -l 8899 .
+cd "OpenNadeuli"
+python3 -m uvicorn app:app --host 127.0.0.1 --port 8899
 ```
 
-브라우저에서 `http://localhost:8899` 접속.
-
-> ⚠️ **8080 포트 주의**: Helpy Code 환경에서는 8080이 Helpy Code UI 자체에 점유되어 있어,
-> `localhost:8080`으로 접속하면 이 앱이 뜨지 않습니다. 위처럼 다른 포트(예: 8899)를 사용하세요.
-
-### file:// 로 바로 열기 (서버 없이)
-
-`standalone.html`은 CSS·JS를 모두 인라인한 단일 파일이라 서버 없이 파일을 직접 열어도 동작합니다.
-
+프런트 개발 서버:
 ```bash
-node build-standalone.mjs   # js/ 소스 수정 후 단일 파일 재생성
+cd frontend
+npm run dev   # vite, 포트 5176
 ```
 
-(ES 모듈은 `file://`에서 브라우저 CORS 정책으로 차단되므로, 모듈 버전(`index.html`)은 반드시 HTTP 서버로 열어야 합니다.)
+프런트 빌드:
+```bash
+cd frontend
+npm run build   # tsc && vite build → frontend/dist
+```
 
-### Vercel 배포 (정적 사이트)
+프런트 미리보기:
+```bash
+cd frontend
+npm run preview   # vite preview, 포트 5190
+```
 
-이 프로젝트는 Vercel에 정적 사이트로 배포할 수 있습니다.
+루트 Vanilla JS 정적 서버 (레거시/병행 운영):
+```bash
+node serve.mjs 8899   # 포트 8899 (백엔드와 포트 충돌 가능)
+```
 
-1. GitHub에 저장소 생성 후 코드 푸시
-2. [Vercel](https://vercel.com/)에 로그인 → "Add New Project" → GitHub 저장소 선택
-3. 프레임워크 프리셋: **Vite** 또는 **기타(Other)** 선택 (정적 HTML 사이트)
-4. 루트 디렉토리: 프로젝트 루트 (기본값)
-5. 환경 변수: Vercel 프로젝트 설정 → Environment Variables에 `.env.example`의 키 이름들을 추가 (실제 값 입력)
-6. 배포 완료 후 생성된 URL로 접속
+### 브라우저 접속
 
-> ⚠️ `.env` 파일은 `.gitignore`에 포함되어 있어 GitHub에 올라가지 않습니다. Vercel 환경 변수에 실제 API 키를 별도로 등록해야 실시간 공공 데이터 API가 작동합니다.
+- 백엔드 API: `http://127.0.0.1:8899/api/health`, `/api/course`, `/api/settings`
+- 프런트 개발: `http://localhost:5176` (vite dev)
+- 프런트 미리보기: `http://localhost:5190` (vite preview)
+- 루트 Vanilla JS: `http://localhost:8899` (serve.mjs)
+
+> ⚠️ **포트 충돌 주의**: 루트 `serve.mjs`와 백엔드 `app.py` 모두 포트 8899를 기본으로 사용하므로, 동시 기동 시 포트 충돌이 발생할 수 있습니다.
+
+> ⚠️ **CORS 설정**: 프런트가 백엔드를 직접 호출하므로, 브라우저에서 프런트 포트(5176, 5190 등)를 `CORS_ORIGINS` 환경변수에 추가해야 정상 동작합니다. 현재 `app.py`에서 `CORS_ORIGINS`를 읽지만 `.env.example`에는 미등재되어 있습니다.
 
 ## 3. 에이전트 동작 구조
+
+백엔드 FastAPI(`backend/src/api/routes.py`)가 프런트 요청을 받아 AI 에이전트 파이프라인을 실행합니다.
 
 ```
 사용자 발화 ("주말에 휠체어 타고 부산 바다 데크길 코스 찾아줘")
    │
-   ├─ ① 의도 분석        nlu.js: 지역/테마/동행/우천/일정 → 파라미터 (LLM 연동 시 이 모듈만 교체)
-   ├─ ② 도구 조합 계획    3개 도구 호출 순서 확정 → 화면에 계획 표시
-   ├─ ③ 도구 자율 호출    tools.callTool()
-   │      ① searchOpenTouristSpots     (한국관광공사 열린관광지·TourAPI)
-   │      ② searchAccessibleTrails     (무장애 탐방로, maxSlope ≤ 8%)
-   │      ③ searchStepFreeRestaurants  (상권정보, stepFree만)  ← ①②의 '선택된 장소 인근 상권'을 인자로 사용 (도구 체이닝)
-   ├─ ④ 검증·필터링      제외 사유까지 반환 (예: "갈치봉 능선 구간(경사도 11.8%) 제외")
-   └─ ⑤ 코스 조립·응답   오전 관광지 → 점심 식당 → 오후 데크길 카드 + 배지 + 팁 + 초대장 + 후속 칩
+   ├─ POST /api/course (app.py 라우터 → backend/src/api/routes.py)
+   │   ├─ ① 의도 분석    backend/src/services/nlu.py: 지역/테마/동행/우천/일정 → 파라미터
+   │   ├─ ② 도구 조합 계획 3개 도구 호출 순서 확정
+   │   ├─ ③ 도구 자율 호출 backend/src/services/tools.py: call_tool()
+   │   │     ① searchOpenTouristSpots     (한국관광공사 열린관광지·TourAPI)
+   │   │     ② searchAccessibleTrails     (무장애 탐방로, maxSlope ≤ 8%)
+   │   │     ③ searchStayHotels           (무장애 숙소, contenttypeid=32)
+   │   │     ④ searchStepFreeRestaurants  (상권정보, 턱 없는 식당) ← ①②의 '선택된 장소 인근 상권'을 인자로 사용 (도구 체이닝)
+   │   ├─ ④ 검증·필터링 제외 사유까지 반환 (예: "갈치봉 능선 구간(경사도 11.8%) 제외")
+   │   └─ ⑤ 코스 조립·응답   오전 관광지 → 점심 식당 → 오후 데크길 카드 + 배지 + 팁 + 초대장 + 후속 칩
+   │
+   └─ 응답 JSON: { "events": [...], "answer": { ... }, "source": "sample" }
 ```
 
-각 단계는 이벤트 핸들러(`onStatus / onTool / onToolDone / onNote / onAnswer`)로 스트리밍되어
-UI 타임라인에 실시간 표시됩니다.
+프런트(`frontend/src/App.tsx`, `frontend/src/lib/api.ts`)는 `http://127.0.0.1:8899/api/course`로 `POST` 요청을 보내고, 응답(`answer.intro`, `answer.cards`, `answer.followups`)을 채팅 화면에 렌더링합니다.
+
+각 단계는 이벤트 핸들러(`onStatus / onTool / onToolDone / onNote / onAnswer`)로 스트리밍되어 UI 타임라인에 표시됩니다.
 
 ## 4. 공공 API 실시간 연동 가이드
 
-앱은 기본으로 내장 샘플 데이터로 동작하고, **본인 인증키를 입력하면 공공데이터포털 실시간 조회로 전환**됩니다
-(실패 시 자동 폴백). 인증키 발급은 포털 본인 가입이 필요합니다(약 5분).
+앱은 기본으로 **내장 샘플 데이터**로 동작하고, **백엔드 서버 메모리(`os.environ`)에 API 키를 저장**하면 공공데이터포털 실시간 조회로 전환됩니다 (실패 시 자동 폴백). 인증키 발급은 포털 본인 가입이 필요합니다(약 5분).
+
+### 설정 저장 방식
+
+- 프런트(`frontend/src/lib/api.ts`)는 `VITE_*` 환경변수를 사용하지 않고 `http://127.0.0.1:8899`를 하드코딩하고 있습니다(알려진 문제: 배포 시 API 호출 실패).
+- API 키는 `POST /api/settings`로 백엔드에 전달되며, `backend/src/services/tools.py`의 `save_settings()`가 `os.environ`에만 저장합니다. **파일에는 저장되지 않으며, 서버 재시작 시 소멸합니다.**
+- `ENABLE_SETTINGS` 환경변수가 미설정 시 `POST /api/settings`는 403을 반환합니다.
+
+### 라이브 API 호출 경로
+
+- 백엔드 `backend/src/services/tools.py`의 `_try_live()`가 `httpx.Client`로 공공데이터포털을 **서버에서 직접 호출**합니다.
+- 브라우저 직접 호출 또는 `serve.mjs` 프록시는 현재 React 프런트에서 사용하지 않습니다.
+- 라이브 호출 실패 시 내장 샘플 데이터로 자동 폴백합니다.
 
 ### 발급 절차
+
 1. https://www.data.go.kr 회원가입 (본인인증)
-2. 아래 서비스 검색 후 **"활용신청"** (목적: 애플리케이션 개발·테스트)
+2. 아래 서비스에 활용신청 후 인증키 발급:
+   - 한국관광공사_국문관광정보 서비스 (KorWithService2)
+   - 소상공인시장진흥공단_상가(상권)정보_OpenApi (sdsc2)
+3. `POST /api/settings`로 키를 백엔드에 전달하거나, 서버 시작 시 `OPENNADEULI_<KEY_NAME_UPPER>` 환경변수로 설정
+
+### 실측 스냅샷 워크플로 (보안 안전 — 키를 공유하지 않는 방법)
+
+미리보기 환경처럼 외부 네트워크가 차단된 곳에서도 실제 API 데이터를 쓰려면:
+
+
+### 동작 방식과 안전장치
+
+- 관광지는 무장애여행 API `areaBasedList2`(지역별)로 조회하고 0건이면 `searchKeyword2` 키워드로 재시도하며, 상위 3곳은 `detailIntro2` 상세로 무장애 시설(휠체어 대여·화장실 등)을 검증해 실배지를 부여합니다.
+- 식당은 상권정보 `storeListInRadius`로 선택된 활동 장소 좌표 반경 600m 중 음식점을 선별하고, 카페 옵션 시 카페 종목 매장을 우선 배정합니다.
+- 1박 2일 코스에서는 `searchStayHotels`로 무장애여행 정보의 숙박 콘텐츠(contenttypeid=32)를 조회해 1일차 마지막 "체크인" 카드로 배치합니다.
+- 일정 조립은 시간대 칸에 활동을 고정하지 않습니다 — 시작~종료 시간 범위와 식사/카페 옵션만으로 활동 수(2.5시간당 1개, 최대 3개)와 끼니·카페 시간 창을 계산해 유연하게 배치하고, 시간에 맞지 않는 이벤트는 제외하며 그 근거를 노트로 표시합니다.
+- 지역 인식은 `backend/src/services/nlu.py`의 `REGION_KEYWORDS` 사전 기준 — "동해"→강원, "서해"→인천, "남해"→경남, "포항·울진"→경북 등 바다 키워드를 포함한 전국 시·도를 인식하고, 호출 시 TourAPI 표준 지역코드(`AREA_CODE`)를 사용합니다. 내장 샘플이 없는 지역은 전국 샘플로 폴백하며 도구 노트에 근거를 표시합니다.
+- 탐방로(`②`)는 data.go.kr에 OpenAPI가 미제공(파일데이터만 확인)이라 내장 데이터로 검증하며, 대안으로 행안부 생활안전지도(safemap.go.kr) 국립공원탐방로 API 연동이 가능합니다.
+- **현장 확인 배지**: 공공 API가 휠체어 대여·출입구 턱 등 상세 무장애 정보를 제공하지 않는 경우, 라이브 결과 카드에는 "⚠️ 무장애 정보 현장 확인 필요" 배지를 붙여 확인되지 않은 정보를 안전하게 구분합니다.스 검색 후 **"활용신청"** (목적: 애플리케이션 개발·테스트)
    - **[개발계정]한국관광공사_무장애 여행 정보** — End Point `KorWithService2` (전용 무장애 콘텐츠 + 상세 시설 검증)
    - **소상공인시장진흥공단_상가(상권)정보_api** — End Point `B553077/api/open/sdsc2` (반경내 상가업소 storeListInRadius)
    - (선택) 국립공원공단 탐방로 관련 서비스 — 신청 후 `js/tools.js`의 `LIVE_APIS.searchAccessibleTrails.url`에
@@ -165,36 +216,118 @@ UI 타임라인에 실시간 표시됩니다.
 
 ## 5. 프로젝트 구조
 
-```
-index.html            ★메인 실행 파일 — CSS·JS 전부 인라인 단일 파일
-                      (터널/미리보기 스냅샷·file:// 직접 열기·정적 서버 어디서든 동작)
-standalone.html       index.html과 동일한 사본 (이름으로 구분)
-index.template.html   개발용 템플릿 (js/ 모듈 참조 버전 — 배포 파일의 원본)
-styles.css            가독성 중심 UI (본문 18px+, 고대비, 큰 터치 영역, 반응형)
-build-standalone.mjs  빌드 스크립트: js/ 수정 후 실행 → index.html·standalone.html 재생성
+루트(Vanilla JS 정적 앱, 병행 운영 중인 레거시):
+
+\`\`\`
+index.html              단일 실행 파일 (CSS·JS 인라인) — vercel.json 배포 대상 아님
+index.template.html     개발용 템플릿 (js/ 모듈 참조)
+standalone.html         index.html과 동일한 사본 (file:// 직접 열기용)
+styles.css              가독성 중심 UI
+serve.mjs               정적 서버 + /proxy/openapi·/proxy/kakaomaps 프록시 (포트 8899)
 js/
-  data.js         내장 샘플 데이터 — 실제 공공데이터 응답 스펙과 동일한 항목 구조
-  nlu.js          규칙 기반 의도 분석기 (LLM 파서로 교체 가능한 인터페이스)
-  tools.js        도구 정의(스키마)·샘플/라이브 커넥터·필터링·제외 근거
-  agent.js        파이프라인 오케스트레이터 (계획→호출→체이닝→조립, 후속 질문 맥락 유지)
-  ui.js           채팅·타임라인·도구 칩·카드·초대장·설정 렌더링
-  main.js         진입점
-```
+  data.js     내장 샘플 데이터 (관광지/탐방로/식당/호텔)
+  nlu.js      규칙 기반 의도 분석기
+  tools.js    도구 정의·라이브 API 커넥터·필터링·설정 저장소
+  agent.js    파이프라인 오케스트레이터
+  ui.js       채팅·타임라인·도구 칩·카드·초대장·설정 렌더링
+  main.js     진입점
+\`\`\`
 
-> ※ 배포/공유는 반드시 빌드된 `index.html`(단일 파일)을 사용하세요. 미리보기·터널 환경은
-> index.html 하나만 스냅샷으로 전달하기 때문에, 모듈을 외부 참조하는 버전에서는 JS가 동작하지 않습니다.
+\`frontend/\`(Vite+React+TypeScript):
 
+\`\`\`
+package.json            vite, react, typescript, build:vercel 스크립트
+vite.config.ts          Vite 설정 (포트 5176 dev / 5190 preview)
+index.html              Vite 엔트리 HTML
+src/
+  App.tsx               React 챗봇 컴포넌트 (postCourse로 백엔드 호출)
+  lib/api.ts            백엔드 API 호출 (API_BASE 하드코딩, VITE_* 미사용)
+  main.tsx              React 진입점
+  types.ts              CourseRequest/CourseResponse/CourseAnswer 등 타입 정의
+  styles.css            스타일
+\`\`\`
+
+\`backend/\`(Python·FastAPI):
+
+\`\`\`
+app.py                  FastAPI 진입점 (포트 8899, CORS_ORIGINS, 정적 파일 서빙)
+requirements.txt        fastapi, uvicorn, python-dotenv, httpx, pydantic
+test_backend.py         백엔드 로직 테스트 스크립트
+src/
+  api/
+    routes.py           /api/health, /api/course, /api/settings 라우트
+  data/
+    sample_data.py      내장 샘플 데이터 (filter_spots/trails/restaurants/hotels)
+  services/
+    agent.py            AI 에이전트 파이프라인 (OutingAgent)
+    nlu.py              의도 분석기
+    tools.py            공공 API 도구 스펙, 라이브/내장 폴백, 설정 저장(os.environ)
+\`\`\`
+
+\`docs/\`:
+\`\`\`
+docs/기획서.md          제품 기획 요약
+docs/specs/             (없음 — Spec 작성 필요 시 작성)
+docs/adr/               (없음 — ADR 작성 필요 시 작성)
+\`\`\`
+
+지원 파일:
+\`\`\`
+.env.example            API 키 템플릿 (키 이름만, 값 없음)
+.gitignore              .env, node_modules, dist 등 제외
+vercel.json             Vercel 배포 설정 (FastAPI 함수 + 정적 파일)
+- **Vercel 배포**: `vercel.json` 설정 포함. GitHub 저장소 연결 후 Vercel에서 자동 배포.
+- 배포 구조: FastAPI 함수(`/api/(.*)` → `/app.py`) + 정적 파일(`/frontend/dist/index.html` SPA 폴백)
+- `.env`는 `.gitignore`로 제외. 실제 API 키는 Vercel 프로젝트 설정의 Environment Variables에 등록.
+- 프런트(`frontend/src/lib/api.ts`)는 `http://127.0.0.1:8899`를 하드코딩하고 있어, Vercel 배포 시 모든 API 호출이 실패합니다. 배포 전 `VITE_API_BASE` 환경변수 도입 또는 상대경로 `/api` 사용으로 수정 필요(문서 수정 PR에서는 코드 미수정, PR 설명에 제안만 기록).
+- 배포 도메인을 `CORS_ORIGINS` 환경변수에 추가해야 프런트·백엔드 간 CORS가 정상 동작합니다.
+- Kakao JS SDK 도메인에 개발 포트와 Vercel 도메인을 등록해야 지도 기능이 정상 동작합니다(지도는 현재 React 프런트 미구현, 루트 HTML에만 참조됨).
+
+README.md               개요·실행법 (사람 독자)
+CONVERSATION_LOG.md     작업 기록
+\`\`\`
 ## 6. 확장 포인트
 
-- **LLM 연동**: `nlu.js`의 `parseIntent`를 모델 기반 파서로 교체하고, `agent.js`의 도구 정의(`TOOL_SPECS`)는
-  OpenAI 스타일 function schema로 되어 있어 그대로 모델 tools에 전달할 수 있습니다.
-- **지역·장소 추가**: `js/data.js`에 관광지/탐방로/식당 항목을 스펙 형식 그대로 추가하면
-  의도 분석 키워드(`REGION_KEYWORDS`)만 보강해도 즉시 추천 대상에 포함됩니다.
-- **배지 확장**: `data.js`의 `BADGE_DEFS`에 배지를 추가하고 각 데이터의 배지 필드만 채우면
-  카드·요약·초대장에 자동 반영됩니다.
-
+- **LLM 연동**: `backend/src/services/nlu.py`의 `parse_intent`를 모델 기반 파서로 교체하고, `backend/src/services/tools.py`의 `TOOL_SPECS`는 OpenAI 스타일 function schema로 되어 있어 그대로 모델 tools에 전달할 수 있습니다.
+- **지역·장소 추가**: `backend/src/data/sample_data.py`에 관광지/탐방로/식당 항목을 스펙 형식 그대로 추가하면 의도 분석 키워드만 보강해도 즉시 추천 대상에 포함됩니다.
+- **배지 확장**: `backend/src/data/sample_data.py`의 배지 필드만 채우면 카드·요약·초대장에 자동 반영됩니다.
 ## 7. 주의
 
 - 내장 데이터(장소명·주소·시설 정보)는 **시연용 가상 데이터**입니다. 실제 방문 전
-  각 지자체·시설 공식 정보를 확인하세요. 지도 링크는 네이버 지도 검색으로 연결됩니다.
-- API 키는 브라우저 localStorage에만 저장되며 외부로 전송되지 않습니다.
+  각 지자체·시설 공식 정보를 확인하세요. 지도 링크는 카카오 맵으로 연결됩니다(루트 HTML에 Kakao Maps SDK 참조, React 프런트에는 지도 기능 미구현).
+- 프런트(`frontend/src/lib/api.ts`, `frontend/src/main.tsx`)는 `http://127.0.0.1:8899`로 직접 호출하며, API 키와 사용자 입력은 백엔드 경유 없이 클라이언트 쪽에 노출되지 않습니다.
+- 프런트(`frontend/src/lib/api.ts`)는 `http://127.0.0.1:8899`를 하드코딩하고 있어, 배포 시 모든 API 호출이 실패합니다(`VITE_*` 환경변수 미사용).
+
+## 8. 현재 검증 상태
+
+| 항목 | 결과 | 비고 |
+|------|------|------|
+| 백엔드 API (`GET /api/health`, `POST /api/course`) | 검증됨 | curl/TestClient로 200 + `answer` 구조 확인 |
+| 백엔드 API (`POST /api/settings` 403 제어) | 검증됨 | `ENABLE_SETTINGS` 미설정 시 403 |
+| 프런트 빌드 (`npm run build`) | 검증됨 | `tsc && vite build` 성공 |
+| 프런트 정적 서빙 | 부분 검증 | python `http.server`는 정상, `vite preview`는 이 환경에서 무응답 (원인 미상) |
+| CORS preflight | 부분 검증 | 검증 origin(`http://127.0.0.1:5188`)에서는 `access-control-allow-origin` 반환 확인. 허용 목록 외 origin에도 헤더가 반환되는 현상은 확인되었으나, 원인 미확인(보안 문제) |
+| 브라우저 렌더링 연동 | 미실행(원인: vite preview 무응답) | vite preview가 요청에 응답하지 않아 Playwright 검증 불가 (원인 미상) |
+| 프런트→백엔드 실제 호출 (브라우저 관점) | 미실행(원인: vite preview 무응답) | CORS 원인という 표현은 사용하지 않음 |
+
+
+| 항목 | 결과 | 비고 |
+|------|------|------|
+| 백엔드 API (`GET /api/health`, `POST /api/course`) | 검증됨 | curl/TestClient로 200 + `answer` 구조 확인 |
+| 백엔드 API (`POST /api/settings` 403 제어) | 검증됨 | `ENABLE_SETTINGS` 미설정 시 403 |
+| 프런트 빌드 (`npm run build`) | 검증됨 | `tsc && vite build` 성공 |
+| 프런트 정적 서빙 | 부분 검증 | python `http.server`는 정상, `vite preview`는 이 환경에서 무응답 (원인 미상) |
+| CORS preflight | 부분 검증 | 검증 origin(`http://127.0.0.1:5188`)에서는 `access-control-allow-origin` 반환 확인. 허용 목록 외 origin에도 헤더가 반환되는 현상은 확인되었으나, 원인 미확인(보안 문제) |
+| 브라우저 렌더링 연동 | 미실행(원인: vite preview 무응답) | vite preview가 요청에 응답하지 않아 Playwright 검증 미실행 |
+| 프런트→백엔드 실제 호출 (브라우저 관점) | 미실행(원인: vite preview 무응답) | 브라우저 관점 실제 호출 미실행 — CORS 원인이라는 표현은 사용하지 않음 |
+
+
+| 항목 | 결과 | 비고 |
+|------|------|------|
+| 백엔드 API (`GET /api/health`, `POST /api/course`) | 검증됨 | curl/TestClient로 200 + `answer` 구조 확인 |
+| 백엔드 API (`POST /api/settings` 403 제어) | 검증됨 | `ENABLE_SETTINGS` 미설정 시 403 |
+| 프런트 빌드 (`npm run build`) | 검증됨 | `tsc && vite build` 성공 |
+| 프런트 정적 서빙 | 부분 검증 | python `http.server`는 정상, `vite preview`는 이 환경에서 무응답 (원인 미상) |
+| CORS preflight (`http://127.0.0.1:5188`) | 검증됨 | curl로 허용 오리진 확인 |
+| 브라우저 렌더링 연동 | 미검증 | vite preview 서버 hang으로 Playwright 검증 불가 (원인 미상) |
+| 프런트→백엔드 실제 호출 (브라우저 관점) | 미검증 | CORS 원인으로 확인 불가 |
