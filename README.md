@@ -58,7 +58,7 @@ cd frontend
 npm run preview   # vite preview, 포트 5190
 ```
 
-루트 Vanilla JS 정적 서버 (레거시/병행 운영):
+루트 Vanilla JS 정적 서버 (지위 미정 TODO(확인 필요)):
 ```bash
 node serve.mjs 8899   # 포트 8899 (백엔드와 포트 충돌 가능)
 ```
@@ -123,11 +123,6 @@ node serve.mjs 8899   # 포트 8899 (백엔드와 포트 충돌 가능)
    - 소상공인시장진흥공단_상가(상권)정보_OpenApi (sdsc2)
 3. `POST /api/settings`로 키를 백엔드에 전달하거나, 서버 시작 시 `OPENNADEULI_<KEY_NAME_UPPER>` 환경변수로 설정
 
-### 실측 스냅샷 워크플로 (보안 안전 — 키를 공유하지 않는 방법)
-
-미리보기 환경처럼 외부 네트워크가 차단된 곳에서도 실제 API 데이터를 쓰려면:
-
-
 ### 동작 방식과 안전장치
 
 - 관광지는 무장애여행 API `areaBasedList2`(지역별)로 조회하고 0건이면 `searchKeyword2` 키워드로 재시도하며, 상위 3곳은 `detailIntro2` 상세로 무장애 시설(휠체어 대여·화장실 등)을 검증해 실배지를 부여합니다.
@@ -135,8 +130,8 @@ node serve.mjs 8899   # 포트 8899 (백엔드와 포트 충돌 가능)
 - 1박 2일 코스에서는 `searchStayHotels`로 무장애여행 정보의 숙박 콘텐츠(contenttypeid=32)를 조회해 1일차 마지막 "체크인" 카드로 배치합니다.
 - 일정 조립은 시간대 칸에 활동을 고정하지 않습니다 — 시작~종료 시간 범위와 식사/카페 옵션만으로 활동 수(2.5시간당 1개, 최대 3개)와 끼니·카페 시간 창을 계산해 유연하게 배치하고, 시간에 맞지 않는 이벤트는 제외하며 그 근거를 노트로 표시합니다.
 - 지역 인식은 `backend/src/services/nlu.py`의 `REGION_KEYWORDS` 사전 기준 — "동해"→강원, "서해"→인천, "남해"→경남, "포항·울진"→경북 등 바다 키워드를 포함한 전국 시·도를 인식하고, 호출 시 TourAPI 표준 지역코드(`AREA_CODE`)를 사용합니다. 내장 샘플이 없는 지역은 전국 샘플로 폴백하며 도구 노트에 근거를 표시합니다.
-- 탐방로(`②`)는 data.go.kr에 OpenAPI가 미제공(파일데이터만 확인)이라 내장 데이터로 검증하며, 대안으로 행안부 생활안전지도(safemap.go.kr) 국립공원탐방로 API 연동이 가능합니다.
-- **현장 확인 배지**: 공공 API가 휠체어 대여·출입구 턱 등 상세 무장애 정보를 제공하지 않는 경우, 라이브 결과 카드에는 "⚠️ 무장애 정보 현장 확인 필요" 배지를 붙여 확인되지 않은 정보를 안전하게 구분합니다.스 검색 후 **"활용신청"** (목적: 애플리케이션 개발·테스트)
+- 탐방로(`②`)는 data.go.kr에 OpenAPI가 미제공(파일데이터만 확인)이라 내장 데이터로 검증합니다. 행안부 생활안전지도(safemap.go.kr) 연동은 TODO(확인 필요)입니다.
+- 한국관광공사_국문관광정보 서비스 (KorService2)
    - **[개발계정]한국관광공사_무장애 여행 정보** — End Point `KorWithService2` (전용 무장애 콘텐츠 + 상세 시설 검증)
    - **소상공인시장진흥공단_상가(상권)정보_api** — End Point `B553077/api/open/sdsc2` (반경내 상가업소 storeListInRadius)
    - (선택) 국립공원공단 탐방로 관련 서비스 — 신청 후 `js/tools.js`의 `LIVE_APIS.searchAccessibleTrails.url`에
@@ -176,22 +171,6 @@ node serve.mjs 8899   # 포트 8899 (백엔드와 포트 충돌 가능)
 | 22 | 요청 한도 초과 → 잠시 후 재시도 |
 | 12 | 서비스 미등록/폐기 안내 (잘못된 키·경로에서도 표시될 수 있음) |
 
-### 실측 스냅샷 워크플로 (보안 안전 — 키를 공유하지 않는 방법)
-
-미리보기 환경처럼 외부 네트워크가 차단된 곳에서도 **실제 API 데이터**를 쓰려면:
-
-1. **본인 컴퓨터**에서 스냅샷 캡처 (키는 이 단계에만 사용되고 저장·출력되지 않음):
-   ```
-   node capture-snapshot.mjs <인증키>
-   ```
-   → 무장애여행 API(지역별 콘텐츠 + 상세 시설)와 상권정보 API(대표 좌표 반경 음식점)의
-   **실제 응답**을 수집해 `js/snapshot.js`를 생성합니다. **파일에 인증키는 포함되지 않습니다.**
-2. `js/snapshot.js`를 앱이 실행되는 위치에 두고 `node build-standalone.mjs` 재실행
-   (단일 파일 index.html에 실측 데이터가 주입됨)
-3. 앱에서 데이터 출처가 "실측 데이터 스냅샷 (실제 API 응답 캡처)"로 표시되고,
-   상세 검증된 관광지에는 실배지가 붙습니다.
-
-우선순위: 실시간 API → 실측 스냅샷 → 내장 샘플 데이터. (라이브가 되면 자동으로 실시간이 우선됩니다)
 
 ### 동작 방식과 안전장치
 - 호출 경로: **① 브라우저 직접 호출** (data.go.kr는 CORS를 허용 — Origin을 응답에 반영하므로 localhost·터널
@@ -216,9 +195,9 @@ node serve.mjs 8899   # 포트 8899 (백엔드와 포트 충돌 가능)
 
 ## 5. 프로젝트 구조
 
-루트(Vanilla JS 정적 앱, 병행 운영 중인 레거시):
+루트(Vanilla JS 정적 앱, 지위 미정 TODO(확인 필요)):
 
-\`\`\`
+```
 index.html              단일 실행 파일 (CSS·JS 인라인) — vercel.json 배포 대상 아님
 index.template.html     개발용 템플릿 (js/ 모듈 참조)
 standalone.html         index.html과 동일한 사본 (file:// 직접 열기용)
@@ -231,25 +210,26 @@ js/
   agent.js    파이프라인 오케스트레이터
   ui.js       채팅·타임라인·도구 칩·카드·초대장·설정 렌더링
   main.js     진입점
-\`\`\`
+```
 
-\`frontend/\`(Vite+React+TypeScript):
+frontend/ (Vite+React+TypeScript):
 
-\`\`\`
+```
 package.json            vite, react, typescript, build:vercel 스크립트
 vite.config.ts          Vite 설정 (포트 5176 dev / 5190 preview)
 index.html              Vite 엔트리 HTML
+```
 src/
   App.tsx               React 챗봇 컴포넌트 (postCourse로 백엔드 호출)
   lib/api.ts            백엔드 API 호출 (API_BASE 하드코딩, VITE_* 미사용)
   main.tsx              React 진입점
   types.ts              CourseRequest/CourseResponse/CourseAnswer 등 타입 정의
   styles.css            스타일
-\`\`\`
+```
 
-\`backend/\`(Python·FastAPI):
+`backend/`(Python·FastAPI):
 
-\`\`\`
+```
 app.py                  FastAPI 진입점 (포트 8899, CORS_ORIGINS, 정적 파일 서빙)
 requirements.txt        fastapi, uvicorn, python-dotenv, httpx, pydantic
 test_backend.py         백엔드 로직 테스트 스크립트
@@ -262,17 +242,17 @@ src/
     agent.py            AI 에이전트 파이프라인 (OutingAgent)
     nlu.py              의도 분석기
     tools.py            공공 API 도구 스펙, 라이브/내장 폴백, 설정 저장(os.environ)
-\`\`\`
+```
 
-\`docs/\`:
-\`\`\`
+`docs/`:
+```
 docs/기획서.md          제품 기획 요약
 docs/specs/             (없음 — Spec 작성 필요 시 작성)
 docs/adr/               (없음 — ADR 작성 필요 시 작성)
-\`\`\`
+```
 
 지원 파일:
-\`\`\`
+```
 .env.example            API 키 템플릿 (키 이름만, 값 없음)
 .gitignore              .env, node_modules, dist 등 제외
 vercel.json             Vercel 배포 설정 (FastAPI 함수 + 정적 파일)
@@ -285,7 +265,7 @@ vercel.json             Vercel 배포 설정 (FastAPI 함수 + 정적 파일)
 
 README.md               개요·실행법 (사람 독자)
 CONVERSATION_LOG.md     작업 기록
-\`\`\`
+```
 ## 6. 확장 포인트
 
 - **LLM 연동**: `backend/src/services/nlu.py`의 `parse_intent`를 모델 기반 파서로 교체하고, `backend/src/services/tools.py`의 `TOOL_SPECS`는 OpenAI 스타일 function schema로 되어 있어 그대로 모델 tools에 전달할 수 있습니다.
@@ -294,8 +274,8 @@ CONVERSATION_LOG.md     작업 기록
 ## 7. 주의
 
 - 내장 데이터(장소명·주소·시설 정보)는 **시연용 가상 데이터**입니다. 실제 방문 전
-  각 지자체·시설 공식 정보를 확인하세요. 지도 링크는 카카오 맵으로 연결됩니다(루트 HTML에 Kakao Maps SDK 참조, React 프런트에는 지도 기능 미구현).
-- 프런트(`frontend/src/lib/api.ts`, `frontend/src/main.tsx`)는 `http://127.0.0.1:8899`로 직접 호출하며, API 키와 사용자 입력은 백엔드 경유 없이 클라이언트 쪽에 노출되지 않습니다.
+  각 지자체·시설 공식 정보를 확인하세요. **루트 앱은 장소 링크에 네이버 지도 검색을 사용하고, 동선 요약·지도에는 카카오를 함께 사용합니다.** React 프런트에는 지도·지도 링크가 없습니다.
+- 프런트(`frontend/src/lib/api.ts`)는 `http://127.0.0.1:8899`로 백엔드를 직접 호출합니다. API 키와 사용자 입력은 React 프런트·백엔드 경로에서 클라이언트 쪽에 노출되지 않습니다. 루트 앱(localStorage)은 서브셋이므로 serve.mjs 프록시로 키를 전송하는지 여부는 코드 확인 전까지 미확정입니다.
 - 프런트(`frontend/src/lib/api.ts`)는 `http://127.0.0.1:8899`를 하드코딩하고 있어, 배포 시 모든 API 호출이 실패합니다(`VITE_*` 환경변수 미사용).
 
 ## 8. 현재 검증 상태
@@ -308,26 +288,18 @@ CONVERSATION_LOG.md     작업 기록
 | 프런트 정적 서빙 | 부분 검증 | python `http.server`는 정상, `vite preview`는 이 환경에서 무응답 (원인 미상) |
 | CORS preflight | 부분 검증 | 검증 origin(`http://127.0.0.1:5188`)에서는 `access-control-allow-origin` 반환 확인. 허용 목록 외 origin에도 헤더가 반환되는 현상은 확인되었으나, 원인 미확인(보안 문제) |
 | 브라우저 렌더링 연동 | 미실행(원인: vite preview 무응답) | vite preview가 요청에 응답하지 않아 Playwright 검증 불가 (원인 미상) |
-| 프런트→백엔드 실제 호출 (브라우저 관점) | 미실행(원인: vite preview 무응답) | CORS 원인という 표현은 사용하지 않음 |
+| 프런트→백엔드 실제 호출 (브라우저 관점) | 미실행(원인: vite preview 무응답) | 브라우저 관점 실제 호출 미실행 |
 
+## 정보 출처와 라이선스
 
-| 항목 | 결과 | 비고 |
-|------|------|------|
-| 백엔드 API (`GET /api/health`, `POST /api/course`) | 검증됨 | curl/TestClient로 200 + `answer` 구조 확인 |
-| 백엔드 API (`POST /api/settings` 403 제어) | 검증됨 | `ENABLE_SETTINGS` 미설정 시 403 |
-| 프런트 빌드 (`npm run build`) | 검증됨 | `tsc && vite build` 성공 |
-| 프런트 정적 서빙 | 부분 검증 | python `http.server`는 정상, `vite preview`는 이 환경에서 무응답 (원인 미상) |
-| CORS preflight | 부분 검증 | 검증 origin(`http://127.0.0.1:5188`)에서는 `access-control-allow-origin` 반환 확인. 허용 목록 외 origin에도 헤더가 반환되는 현상은 확인되었으나, 원인 미확인(보안 문제) |
-| 브라우저 렌더링 연동 | 미실행(원인: vite preview 무응답) | vite preview가 요청에 응답하지 않아 Playwright 검증 미실행 |
-| 프런트→백엔드 실제 호출 (브라우저 관점) | 미실행(원인: vite preview 무응답) | 브라우저 관점 실제 호출 미실행 — CORS 원인이라는 표현은 사용하지 않음 |
+외부 정보는 공식 원문을 우선 사용하고, 기관명·데이터명·원문 URL·발표 또는 조회 시각을 표시한다.
 
+| 데이터셋 | 기관 | 원문 URL | 라이선스·이용 조건 | 확인 시각 |
+|----------|------|----------|-------------------|-----------|
+| 한국관광공사 열린관광지 (KorWithService2) | 한국관광공사 | https://www.data.go.kr | TODO(확인 필요) | TODO(확인 필요) |
+| 소상공인 상권정보 (sdsc2) | 소상공인시장진흥공단 | https://www.data.go.kr | TODO(확인 필요) | TODO(확인 필요) |
+| 국립공원·지자체 무장애 탐방로 | 내장 샘플 | — | 데이터셋별 이용약관 확인 필요 | TODO(확인 필요) |
+| Kakao Maps JavaScript SDK | (주)카카오 | https://apis.map.kakao.com | 카카오 개발자 약관 적용 | TODO(확인 필요) |
 
-| 항목 | 결과 | 비고 |
-|------|------|------|
-| 백엔드 API (`GET /api/health`, `POST /api/course`) | 검증됨 | curl/TestClient로 200 + `answer` 구조 확인 |
-| 백엔드 API (`POST /api/settings` 403 제어) | 검증됨 | `ENABLE_SETTINGS` 미설정 시 403 |
-| 프런트 빌드 (`npm run build`) | 검증됨 | `tsc && vite build` 성공 |
-| 프런트 정적 서빙 | 부분 검증 | python `http.server`는 정상, `vite preview`는 이 환경에서 무응답 (원인 미상) |
-| CORS preflight (`http://127.0.0.1:5188`) | 검증됨 | curl로 허용 오리진 확인 |
-| 브라우저 렌더링 연동 | 미검증 | vite preview 서버 hang으로 Playwright 검증 불가 (원인 미상) |
-| 프런트→백엔드 실제 호출 (브라우저 관점) | 미검증 | CORS 원인으로 확인 불가 |
+※ 공공누리 유형과 조회 시각은 실제로 열어서 확인한 경우에만 기입한다. 확인하지 못한 칸은 TODO(확인 필요)로 두며, 조회 시각을 지어내지 않는다.
+

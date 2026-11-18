@@ -1,5 +1,25 @@
 # AGENTS.md
 
+루트(프로젝트 루트):
+app.py                  FastAPI 진입점 (포트 8899, CORS_ORIGINS, 정적 파일 서빙)
+requirements.txt        fastapi, uvicorn, python-dotenv, httpx, pydantic
+test_backend.py         백엔드 로직 테스트 스크립트
+.env.example            API 키 템플릿 (키 이름만, 값 없음)
+vercel.json             Vercel 배포 설정
+.gitignore              제외 파일 설정
+
+backend/(Python·FastAPI):
+src/
+  api/
+    routes.py           /api/health, /api/course, /api/settings 라우트
+  data/
+    sample_data.py      내장 샘플 데이터 (filter_spots/trails/restaurants/hotels)
+  services/
+    agent.py            AI 에이전트 파이프라인 (OutingAgent)
+    nlu.py              의도 분석기
+    tools.py            공공 API 도구 스펙, 라이브/내장 폴백, 설정 저장(os.environ)
+
+`frontend/`(Vite+React+TypeScript):
 AI 코딩 에이전트(Claude Code, Codex, Cursor 등)가 이 저장소에서 작업할 때 따르는 공통 지침입니다. 어떤 도구를 쓰든 이 문서를 기준으로 합니다.
 
 ## 프로젝트 개요
@@ -8,6 +28,9 @@ AI 코딩 에이전트(Claude Code, Codex, Cursor 등)가 이 저장소에서 �
 일상 대화 한마디로 공공 무장애 데이터(한국관광공사 열린관광지, 국립공원공단·지자체 무장애 탐방로, 소상공인 상권정보)를 조합해 헛걸음 없는 나들이 코스를 제안합니다.
 
 - 구조: 루트(Vanilla JS 정적 앱, 지위 미정 TODO(확인 필요)) + `frontend/`(Vite+React+TypeScript) + `backend/`(Python·FastAPI)
+| 공공 데이터 | 한국관광공사 열린관광지(KorWithService2), 소상공인 상권정보(sdsc2) | `backend/src/services/tools.py` |
+| 공공 데이터 | 한국관광공사 열린관광지(KorWithService2), 소상공인 상권정보(sdsc2) | `backend/src/services/tools.py` |
+| 환경변수 | `PORT`, `CORS_ORIGINS`, `KorWithS_End_Point`, `KorWithS_Key`, `SdsC_End_Point`, `SdsC_Key` (.env.example 5줄 추가됨) | `app.py`, `backend/src/api/routes.py` |
 - 프런트: React 18 + TypeScript + Vite, `http://127.0.0.1:8899` 백엔드 직접 호출 (Vite 프록시 미사용, `VITE_*` 환경변수 미사용)
 - 백엔드: FastAPI + uvicorn, 포트 8899, `/api/health`, `/api/course`, `/api/settings` 엔드포인트
 - 실행: 백엔드 `python3 -m uvicorn app:app --host 127.0.0.1 --port 8899`, 프런트 `cd frontend && npm run dev` (포트 5176)
@@ -21,10 +44,10 @@ AI 코딩 에이전트(Claude Code, Codex, Cursor 등)가 이 저장소에서 �
 | 빌드 도구 | Vite (`npm run build`) | `frontend/package.json` |
 | 백엔드 | Python + FastAPI + uvicorn | `requirements.txt`, `app.py`, `backend/src/api/routes.py` |
 | 공공 데이터 | 한국관광공사 열린관광지(KorWithService2), 소상공인 상권정보(sdsc2) | `backend/src/services/tools.py` |
-| 환경변수 | `CORS_ORIGINS`, `ENABLE_SETTINGS`, `PORT` (코드에 추가, `.env.example` 미등재) | `app.py`, `backend/src/api/routes.py` |
+| 환경변수 | `PORT`, `CORS_ORIGINS`, `KorWithS_End_Point`, `KorWithS_Key`, `SdsC_End_Point`, `SdsC_Key` (`.env.example` 5줄 추가됨) | `app.py`, `backend/src/api/routes.py` |
 | 설정 저장 | 서버 메모리(`os.environ`)만, 파일 미저장, 재시작 시 소멸 | `backend/src/services/tools.py` (`save_settings`) |
 | 도구 목록 | `searchOpenTouristSpots`, `searchAccessibleTrails`, `searchStayHotels`, `searchStepFreeRestaurants` | `backend/src/services/tools.py` (`TOOL_SPECS`) |
-| 지도 | 루트 HTML에 Kakao Maps 참조 (React 프런트에는 미구현) | 루트 `index.html`, `frontend/src/App.tsx` |
+| 지도 | 루트 HTML: 네이버 지도 검색(mapUrl) + 카카오 동선 요약, React 프런트 미도입 | 루트 `index.html`, `frontend/src/App.tsx` |
 | API 키 (프런트) | `VITE_*` 미사용, `http://127.0.0.1:8899` 하드코딩 | `frontend/src/lib/api.ts` (알려진 문제: 배포 시 실패) |
 
 ## 주요 파일 구조
@@ -42,46 +65,6 @@ js/
   nlu.js      규칙 기반 의도 분석기
   tools.js    도구 정의·라이브 API 커넥터·필터링·설정 저장소
   agent.js    파이프라인 오케스트레이터
-  ui.js       채팅·타임라인·도구 칩·카드·초대장·설정 렌더링
-  main.js     진입점
-```
-
-`frontend/`(Vite+React+TypeScript):
-
-```
-package.json            vite, react, typescript, build:vercel 스크립트
-vite.config.ts          Vite 설정 (포트 5176 dev / 5190 preview)
-index.html              Vite 엔트리 HTML
-src/
-  App.tsx               React 챗봇 컴포넌트 (postCourse로 백엔드 호출)
-  lib/api.ts            백엔드 API 호출 (API_BASE 하드코딩, VITE_* 미사용)
-  main.tsx              React 진입점
-  types.ts              CourseRequest/CourseResponse/CourseAnswer 등 타입 정의
-  styles.css            스타일
-```
-
-`backend/`(Python·FastAPI):
-
-```
-app.py                  FastAPI 진입점 (포트 8899, CORS_ORIGINS, 정적 파일 서빙)
-requirements.txt        fastapi, uvicorn, python-dotenv, httpx, pydantic
-test_backend.py         백엔드 로직 테스트 스크립트
-src/
-  api/
-    routes.py           /api/health, /api/course, /api/settings 라우트
-  data/
-    sample_data.py      내장 샘플 데이터 (filter_spots/trails/restaurants/hotels)
-  services/
-    agent.py            AI 에이전트 파이프라인 (OutingAgent)
-    nlu.py              의도 분석기
-    tools.py            공공 API 도구 스펙, 라이브/내장 폴백, 설정 저장(os.environ)
-```
-
-`docs/`:
-```
-docs/기획서.md          제품 기획 요약
-docs/specs/             (없음 — Spec 작성 필요 시 작성)
-docs/adr/               (없음 — ADR 작성 필요 시 작성)
 ```
 
 지원 파일:
@@ -153,9 +136,9 @@ CONVERSATION_LOG.md     작업 기록
 - 백엔드 API: `GET /api/health` 200, `POST /api/course` 200 + `answer` 구조 반환 (curl/TestClient로 검증됨)
 - 프런트 빌드: `cd frontend && npm run build` (`tsc && vite build`) 성공 (검증됨)
 - 프런트 정적 서빙: 부분 검증 (python `http.server`는 정상, `vite preview`는 이 환경에서 무응답, 원인 미상)
-- 브라우저 렌더링 연동: 미검증 (vite preview 서버 hang으로 Playwright 검증 불가, 원인 미상)
-- 프런트→백엔드 실제 호출: 미검증 (브라우저에서 CORS 원인으로 확인 불가)
-- CORS preflight: `http://127.0.0.1:5188` 허용 확인 (curl로 검증됨), 허용 목록 외 origin 차단 여부는 미검증(허용 목록 외에도 `access-control-allow-origin`이 반환되는 현상 확인, 보안 문제)
+- 브라우저 렌더링 연동: 미실행(원인: vite preview 무응답)
+- 프런트→백엔드 실제 호출: 미실행(원인: vite preview 무응답)
+- CORS preflight: 부분 검증(검증 origin `http://127.0.0.1:5188`에서는 `access-control-allow-origin` 반환 확인. 허용 목록 외 origin에도 헤더가 반환되는 현상 확인, 원인 미확인(보안 문제))
 - 검증하지 않은 항목을 "완료"라고 말하지 않습니다.
 - 브라우저 검증이 막히면 원인과 함께 "미검증"으로 표기하고, 우회 검증(대체 서버 등)을 썼다면 우회 사실을 기록합니다.
 
@@ -165,9 +148,9 @@ CONVERSATION_LOG.md     작업 기록
 
 | 데이터셋 | 기관 | 원문 URL | 라이선스·이용 조건 | 확인 시각 |
 |----------|------|----------|-------------------|-----------|
-| 한국관광공사 열린관광지 (KorWithService2) | 한국관광공사 | https://www.data.go.kr | 공공누리 (출처 표시 필수) | TODO(확인 필요) |
-| 소상공인 상권정보 (sdsc2) | 소상공인시장진흥공단 | https://www.data.go.kr | 공공누리 (출처 표시 필수) | TODO(확인 필요) |
-| 국립공원·지자체 무장애 탐방로 | 국립공원공단·지자체 | — | 데이터셋별 이용약관 확인 필요 | TODO(확인 필요) |
+| 한국관광공사 열린관광지 (KorWithService2) | 한국관광공사 | https://www.data.go.kr | TODO(확인 필요) | TODO(확인 필요) |
+| 소상공인 상권정보 (sdsc2) | 소상공인시장진흥공단 | https://www.data.go.kr | TODO(확인 필요) | TODO(확인 필요) |
+| 국립공원·지자체 무장애 탐방로 | 내장 샘플 | — | 데이터셋별 이용약관 확인 필요 | TODO(확인 필요) |
 | Kakao Maps JavaScript SDK | (주)카카오 | https://apis.map.kakao.com | 카카오 개발자 약관 적용 | TODO(확인 필요) |
 
 기상청 자료는 공공누리 표시 유형과 개별 이용 조건을 확인한 뒤 사용한다.
@@ -177,13 +160,27 @@ CONVERSATION_LOG.md     작업 기록
 
 이 프로젝트는 `.agents/skills/` 레지스트리와 프로젝트 루트의 `skills.config.json`을 기본 스킬 구성으로 사용합니다.
 
-### 설치 방법 (변경 제안 — PR 설명에 별도 표시)
+### 설치 방법
 
 - 설치 전 **사용자 승인** 필요 (제3자 스킬 전역 설치 금지)
 - 프로젝트 **로컬 설치**만 허용 (`-g` 전역 설치 금지)
 - 버전 고정하여 설치
 - 135개 전체 목록(k-skill)은 컨텍스트 낭비이므로 목록 파일 경로만 안내:
-  - `.agents/skills/k-skill/k-skill-list.md`
-  - `.agents/skills/skills-sh/skills-rank-all-time-1a.md` ~ `1b-2.md`
-  - `.agents/skills/skills-sh/skills-rank-all-time-2a-1.md` ~ `2a-3.md`
-- 프로젝트 루트의 `skills.config.json`에 기본 스킬이 미리 등록되어 있습니다. 작업 시작 시 해당 프로젝트의 `skills.config.json`을 확인하고, 없는 스킬은 `.agents/skills/`에서 조회해 추가 설치합니다.
+  - `.agents/skills/k-skill/k-skill-list.md` (존재 여부 확인 필요)
+  - `.agents/skills/skills-sh/skills-rank-all-time-1a.md` ~ `1b-2.md` (존재 여부 확인 필요)
+  - `.agents/skills/skills-sh/skills-rank-all-time-2a-1.md` ~ `2a-3.md` (존재 여부 확인 필요)
+
+## 환경변수 비교 (코드 읽는 이름 vs .env.example 이름)
+
+코드가 실제로 읽는 환경변수 이름과 `.env.example`에 적힌 이름을 나란히 비교한다. 불일치는 TODO로 둔다.
+
+| 코드에서 읽는 이름 | 읽는 위치(파일) | `.env.example` 이름 | 일치 여부 | 비고 |
+|-------------------|-----------------|---------------------|-----------|------|
+| `PORT` | `app.py` | `PORT` | 일치 | |
+| `CORS_ORIGINS` | `app.py` | `CORS_ORIGINS` | 일치 | |
+| `ENABLE_SETTINGS` | `backend/src/api/routes.py` | 없음 | TODO(확인 필요) | `.env.example`에 미등재 |
+| `OPENNADEULI_SEARCHOPENTOURISTSPOTS` | `backend/src/services/tools.py` | 없음 | TODO(확인 필요) | `.env.example`에 `KorS_Key`로 존재 (이름 불일치) |
+| `OPENNADEULI_SEARCHACCESSIBLETRAILS` | `backend/src/services/tools.py` | 없음 | TODO(확인 필요) | `.env.example`에 해당 키 없음 |
+| `OPENNADEULI_SEARCHSTEPFREERESTAURANTS` | `backend/src/services/tools.py` | 없음 | TODO(확인 필요) | `.env.example`에 해당 키 없음 |
+| `OPENNADEULI_MAPKAKAO` | `backend/src/services/tools.py` | 없음 | TODO(확인 필요) | `.env.example`에 `# KaKo_Key_OpenNadeuli` 주석으로 존재 (표기 의심) |
+| `OPENNADEULI_USE_LIVE` | `backend/src/services/tools.py` | 없음 | TODO(확인 필요) | `.env.example`에 미등재 |
