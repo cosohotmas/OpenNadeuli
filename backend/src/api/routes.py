@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
+import os
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -88,7 +90,9 @@ async def get_settings() -> Dict[str, Any]:
 
 @router.post("/api/settings")
 async def post_settings(req: SettingsRequest) -> Dict[str, Any]:
-    """설정 저장."""
+    """설정 저장. ENABLE_SETTINGS 가 true일 때만 허용한다."""
+    if os.environ.get("ENABLE_SETTINGS", "").lower() not in {"1", "true", "yes"}:
+        raise HTTPException(status_code=403, detail="Settings are disabled")
     current = load_settings()
     if req.useLive is not None:
         current["useLive"] = req.useLive
