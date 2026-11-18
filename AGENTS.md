@@ -160,8 +160,6 @@ CONVERSATION_LOG.md     작업 기록
 
 이 프로젝트는 `.agents/skills/` 레지스트리와 프로젝트 루트의 `skills.config.json`을 기본 스킬 구성으로 사용합니다.
 
-현재 저장소에 `skills.config.json`과 `.agents/` 디렉토리는 **존재하지 않습니다**(TODO: 파일 존재 여부 확인 필요).
-
 ### 설치 방법 (변경 제안 — PR 설명에 별도 표시)
 
 - 설치 전 **사용자 승인** 필요 (제3자 스킬 전역 설치 금지)
@@ -171,4 +169,18 @@ CONVERSATION_LOG.md     작업 기록
   - `.agents/skills/k-skill/k-skill-list.md` (존재 여부 확인 필요)
   - `.agents/skills/skills-sh/skills-rank-all-time-1a.md` ~ `1b-2.md` (존재 여부 확인 필요)
   - `.agents/skills/skills-sh/skills-rank-all-time-2a-1.md` ~ `2a-3.md` (존재 여부 확인 필요)
-- `skills.config.json`은 저장소에 없으므로, 없는 스킬은 `.agents/skills/`에서 조회해 추가 설치합니다(파일 존재 여부는 TODO).
+
+## 환경변수 비교 (코드 읽는 이름 vs .env.example 이름)
+
+코드가 실제로 읽는 환경변수 이름과 `.env.example`에 적힌 이름을 나란히 비교한다. 불일치는 TODO로 둔다.
+
+| 코드에서 읽는 이름 | 읽는 위치(파일) | `.env.example` 이름 | 일치 여부 | 비고 |
+|-------------------|-----------------|---------------------|-----------|------|
+| `PORT` | `app.py` | `PORT` | 일치 | |
+| `CORS_ORIGINS` | `app.py` | `CORS_ORIGINS` | 일치 | |
+| `ENABLE_SETTINGS` | `backend/src/api/routes.py` | 없음 | TODO(확인 필요) | `.env.example`에 미등재 |
+| `OPENNADEULI_SEARCHOPENTOURISTSPOTS` | `backend/src/services/tools.py` | 없음 | TODO(확인 필요) | `.env.example`에 `KorS_Key`로 존재 (이름 불일치) |
+| `OPENNADEULI_SEARCHACCESSIBLETRAILS` | `backend/src/services/tools.py` | 없음 | TODO(확인 필요) | `.env.example`에 해당 키 없음 |
+| `OPENNADEULI_SEARCHSTEPFREERESTAURANTS` | `backend/src/services/tools.py` | 없음 | TODO(확인 필요) | `.env.example`에 해당 키 없음 |
+| `OPENNADEULI_MAPKAKAO` | `backend/src/services/tools.py` | 없음 | TODO(확인 필요) | `.env.example`에 `# KaKo_Key_OpenNadeuli` 주석으로 존재 (표기 의심) |
+| `OPENNADEULI_USE_LIVE` | `backend/src/services/tools.py` | 없음 | TODO(확인 필요) | `.env.example`에 미등재 |

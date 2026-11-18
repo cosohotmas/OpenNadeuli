@@ -197,7 +197,7 @@ node serve.mjs 8899   # 포트 8899 (백엔드와 포트 충돌 가능)
 
 루트(Vanilla JS 정적 앱, 병행 운영 중인 레거시):
 
-\`\`\`
+```
 index.html              단일 실행 파일 (CSS·JS 인라인) — vercel.json 배포 대상 아님
 index.template.html     개발용 템플릿 (js/ 모듈 참조)
 standalone.html         index.html과 동일한 사본 (file:// 직접 열기용)
@@ -210,25 +210,26 @@ js/
   agent.js    파이프라인 오케스트레이터
   ui.js       채팅·타임라인·도구 칩·카드·초대장·설정 렌더링
   main.js     진입점
-\`\`\`
+```
 
 \`frontend/\`(Vite+React+TypeScript):
 
-\`\`\`
+```
 package.json            vite, react, typescript, build:vercel 스크립트
 vite.config.ts          Vite 설정 (포트 5176 dev / 5190 preview)
 index.html              Vite 엔트리 HTML
+```
 src/
   App.tsx               React 챗봇 컴포넌트 (postCourse로 백엔드 호출)
   lib/api.ts            백엔드 API 호출 (API_BASE 하드코딩, VITE_* 미사용)
   main.tsx              React 진입점
   types.ts              CourseRequest/CourseResponse/CourseAnswer 등 타입 정의
   styles.css            스타일
-\`\`\`
+```
 
-\`backend/\`(Python·FastAPI):
+`backend/`(Python·FastAPI):
 
-\`\`\`
+```
 app.py                  FastAPI 진입점 (포트 8899, CORS_ORIGINS, 정적 파일 서빙)
 requirements.txt        fastapi, uvicorn, python-dotenv, httpx, pydantic
 test_backend.py         백엔드 로직 테스트 스크립트
@@ -241,17 +242,17 @@ src/
     agent.py            AI 에이전트 파이프라인 (OutingAgent)
     nlu.py              의도 분석기
     tools.py            공공 API 도구 스펙, 라이브/내장 폴백, 설정 저장(os.environ)
-\`\`\`
+```
 
-\`docs/\`:
-\`\`\`
+`docs/`:
+```
 docs/기획서.md          제품 기획 요약
 docs/specs/             (없음 — Spec 작성 필요 시 작성)
 docs/adr/               (없음 — ADR 작성 필요 시 작성)
-\`\`\`
+```
 
 지원 파일:
-\`\`\`
+```
 .env.example            API 키 템플릿 (키 이름만, 값 없음)
 .gitignore              .env, node_modules, dist 등 제외
 vercel.json             Vercel 배포 설정 (FastAPI 함수 + 정적 파일)
@@ -264,7 +265,7 @@ vercel.json             Vercel 배포 설정 (FastAPI 함수 + 정적 파일)
 
 README.md               개요·실행법 (사람 독자)
 CONVERSATION_LOG.md     작업 기록
-\`\`\`
+```
 ## 6. 확장 포인트
 
 - **LLM 연동**: `backend/src/services/nlu.py`의 `parse_intent`를 모델 기반 파서로 교체하고, `backend/src/services/tools.py`의 `TOOL_SPECS`는 OpenAI 스타일 function schema로 되어 있어 그대로 모델 tools에 전달할 수 있습니다.
@@ -288,4 +289,17 @@ CONVERSATION_LOG.md     작업 기록
 | CORS preflight | 부분 검증 | 검증 origin(`http://127.0.0.1:5188`)에서는 `access-control-allow-origin` 반환 확인. 허용 목록 외 origin에도 헤더가 반환되는 현상은 확인되었으나, 원인 미확인(보안 문제) |
 | 브라우저 렌더링 연동 | 미실행(원인: vite preview 무응답) | vite preview가 요청에 응답하지 않아 Playwright 검증 불가 (원인 미상) |
 | 프런트→백엔드 실제 호출 (브라우저 관점) | 미실행(원인: vite preview 무응답) | 브라우저 관점 실제 호출 미실행 |
+
+## 정보 출처와 라이선스
+
+외부 정보는 공식 원문을 우선 사용하고, 기관명·데이터명·원문 URL·발표 또는 조회 시각을 표시한다.
+
+| 데이터셋 | 기관 | 원문 URL | 라이선스·이용 조건 | 확인 시각 |
+|----------|------|----------|-------------------|-----------|
+| 한국관광공사 열린관광지 (KorWithService2) | 한국관광공사 | https://www.data.go.kr | TODO(확인 필요) | TODO(확인 필요) |
+| 소상공인 상권정보 (sdsc2) | 소상공인시장진흥공단 | https://www.data.go.kr | TODO(확인 필요) | TODO(확인 필요) |
+| 국립공원·지자체 무장애 탐방로 | 내장 샘플 | — | 데이터셋별 이용약관 확인 필요 | TODO(확인 필요) |
+| Kakao Maps JavaScript SDK | (주)카카오 | https://apis.map.kakao.com | 카카오 개발자 약관 적용 | TODO(확인 필요) |
+
+※ 공공누리 유형과 조회 시각은 실제로 열어서 확인한 경우에만 기입한다. 확인하지 못한 칸은 TODO(확인 필요)로 두며, 조회 시각을 지어내지 않는다.
 
