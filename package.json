@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "node serve.mjs 8899",
     "build": "node build-standalone.mjs",
-    "start": "node serve.mjs 8899"
+    "start": "node serve.mjs 8899",
+    "frontend:dev": "cd frontend && npm run dev",
+    "frontend:build": "cd frontend && npm run build:vercel"
   },
   "keywords": [
     "accessibility",

@@ -40,4 +40,39 @@
 - 카카오 SDK `bounds.clear` 제거: Kakao Maps SDK v2 문서상 `LatLngBounds`에 `.clear()` 메서드 없음. 콘솔 에러 `TypeError: bounds.clear is not a function` 실측 확인.
 - 프로젝트 복제: 기존 `helpy2.1/OpenNadeuli`와 동일한 상태로 GitHub 이관을 위한 독립 폴더 생성.
 - GitHub 레포: `https://github.com/cosohotmas/OpenNadeuli.git`에 main 브랜치로 푸시 완료 (2026-11-17)
+
+
+### 2026-11-18 — 백엔드( FastAPI )+프론트엔드( React+TS ) 재구성 및 로컬 연동 테스트
+
+### 한 일
+1. 백엔드 FastAPI( uvicorn app:app )와 프론트엔드 React+TS+Vite 연동 구조 확인
+2. `backend/src/services/agent.py`의 임포트 경로 버그 수정
+   - `from .data.sample_data import REGIONS` → `from ..data.sample_data import REGIONS`
+   - `from .data.sample_data import filter_spots` → `from ..data.sample_data import filter_spots`
+   - 원인: `agent.py`( services/ ) 기준 `data/` 패키지는 한 단계 상위(`..`)에 위치
+3. 백엔드 라우트 등록 확인: `/api/health`, `/api/course`, `/api/settings` 모두 정상
+4. `/api/health` → `{"status":"ok","service":"opennadeuli"}` (HTTP 200)
+5. `/api/course` → 부산 무장애 관광지 1곳(해운대해수욕장 무장애구역) 추천, HTTP 200 정상
+6. 프론트엔드 빌드: `npm run build` 성공 (31 modules, dist/ 생성)
+7. 백엔드 `python -m uvicorn app:app --port 8899` 실행 완료
+8. 프론트엔드 `npm run dev -- --port 5174` 실행 완료
+
+### 실측 결과
+| 항목 | 결과 |
+|------|------|
+| 백엔드 `/api/health` | HTTP 200, `{"status":"ok","service":"opennadeuli"}` |
+| 백엔드 `/api/course` | HTTP 200, 부산 무장애 관광지 1곳 추천 |
+| 백엔드 `/api/settings` | HTTP 405 (GET/POST 테스트 미실시) |
+| 프론트엔드 빌드 | `npm run build` 성공 (31 modules transformed) |
+| 백엔드 서버 | `uvicorn app:app --port 8899` 기동 |
+| 프론트엔드 서버 | `vite --port 5174` 기동 |
+
+### 미검증
+- 프론트엔드 → 백엔드 API 연동 (브라우저 E2E) — 백엔드 200 확인 완료, 프론트엔드 UI 연동은 미검증
+- `app.py`의 `api_router` 등록이 `_IncludedRouter`로 래핑되어 `app.routes`에 직접 노출되지 않음 — `url_path_for()`는 정상 반환 확인
+
+### 다음 할 일
+1. 프론트엔드 `/api/course` API 연동 테스트 (브라우저에서 백엔드 API 호출 확인)
+2. Vercel 배포 준비 (백엔드 `@vercel/python` + 프론트엔드 `vite`)
+3. 루트 `CONVERSATION_LOG.md`에 오늘 날짜 요약 남기기
 - `.env`는 `.gitignore`로 제외, `.env.example`만 관리. Vercel 배포 시 Environment Variables에 실제 API 키 등록 필요.

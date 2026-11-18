@@ -1,16 +1,21 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
-  "builds": [
-    { "src": "index.html", "use": "@vercel/static" },
-    { "src": "standalone.html", "use": "@vercel/static" },
-    { "src": "styles.css", "use": "@vercel/static" },
-    { "src": "js/**", "use": "@vercel/static" },
-    { "src": "serve.mjs", "use": "@vercel/node" }
+  "buildCommand": "cd frontend && npm install && npm run build:vercel",
+  "outputDirectory": "frontend/dist",
+  "framework": "vite",
+  "headers": [
+    {
+      "source": "/",
+      "headers": [{ "key": "Cache-Control", "value": "no-store" }]
+    },
+    {
+      "source": "/(.*\\.html)",
+      "headers": [{ "key": "Cache-Control", "value": "no-store" }]
+    }
   ],
   "routes": [
-    { "src": "/proxy/openapi", "dest": "/serve.mjs" },
-    { "src": "/(.*)", "dest": "/index.html" }
-  ],
-  "cleanUrls": true,
-  "trailingSlash": false
+    { "src": "/api/(.*)", "dest": "/app.py" },
+    { "src": "/(.*)", "dest": "/frontend/dist/index.html" }
+  ]
 }
