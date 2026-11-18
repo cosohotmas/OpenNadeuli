@@ -119,7 +119,7 @@ node serve.mjs 8899   # 포트 8899 (백엔드와 포트 충돌 가능)
 
 1. https://www.data.go.kr 회원가입 (본인인증)
 2. 아래 서비스에 활용신청 후 인증키 발급:
-   - 한국관광공사_국문관광정보 서비스 (KorService2)
+   - 한국관광공사_국문관광정보 서비스 (KorWithService2)
    - 소상공인시장진흥공단_상가(상권)정보_OpenApi (sdsc2)
 3. `POST /api/settings`로 키를 백엔드에 전달하거나, 서버 시작 시 `OPENNADEULI_<KEY_NAME_UPPER>` 환경변수로 설정
 
@@ -127,12 +127,6 @@ node serve.mjs 8899   # 포트 8899 (백엔드와 포트 충돌 가능)
 
 미리보기 환경처럼 외부 네트워크가 차단된 곳에서도 실제 API 데이터를 쓰려면:
 
-1. **본인 컴퓨터**에서 스냅샷 캡처 (키는 이 단계에만 사용되고 저장·출력되지 않음)
-2. `js/snapshot.js`를 앱이 실행되는 위치에 두고 재실행
-   - **참고**: `capture-snapshot.mjs`, `build-standalone.mjs`, `js/snapshot.js`는 현재 저장소에 존재하지 않음 (TODO: 파일 존재 여부 확인 필요)
-3. 앱에서 데이터 출처가 "실측 데이터 스냅샷 (실제 API 응답 캡처)"로 표시되고, 상세 검증된 관광지에는 실배지가 붙습니다.
-
-우선순위: 실시간 API → 실측 스냅샷 → 내장 샘플 데이터. (라이브가 되면 자동으로 실시간이 우선됩니다)
 
 ### 동작 방식과 안전장치
 
@@ -282,7 +276,13 @@ docs/adr/               (없음 — ADR 작성 필요 시 작성)
 .env.example            API 키 템플릿 (키 이름만, 값 없음)
 .gitignore              .env, node_modules, dist 등 제외
 vercel.json             Vercel 배포 설정 (FastAPI 함수 + 정적 파일)
-AGENTS.md               이 파일 (에이전트 지침)
+- **Vercel 배포**: `vercel.json` 설정 포함. GitHub 저장소 연결 후 Vercel에서 자동 배포.
+- 배포 구조: FastAPI 함수(`/api/(.*)` → `/app.py`) + 정적 파일(`/frontend/dist/index.html` SPA 폴백)
+- `.env`는 `.gitignore`로 제외. 실제 API 키는 Vercel 프로젝트 설정의 Environment Variables에 등록.
+- 프런트(`frontend/src/lib/api.ts`)는 `http://127.0.0.1:8899`를 하드코딩하고 있어, Vercel 배포 시 모든 API 호출이 실패합니다. 배포 전 `VITE_API_BASE` 환경변수 도입 또는 상대경로 `/api` 사용으로 수정 필요(문서 수정 PR에서는 코드 미수정, PR 설명에 제안만 기록).
+- 배포 도메인을 `CORS_ORIGINS` 환경변수에 추가해야 프런트·백엔드 간 CORS가 정상 동작합니다.
+- Kakao JS SDK 도메인에 개발 포트와 Vercel 도메인을 등록해야 지도 기능이 정상 동작합니다(지도는 현재 React 프런트 미구현, 루트 HTML에만 참조됨).
+
 README.md               개요·실행법 (사람 독자)
 CONVERSATION_LOG.md     작업 기록
 \`\`\`
@@ -295,10 +295,32 @@ CONVERSATION_LOG.md     작업 기록
 
 - 내장 데이터(장소명·주소·시설 정보)는 **시연용 가상 데이터**입니다. 실제 방문 전
   각 지자체·시설 공식 정보를 확인하세요. 지도 링크는 카카오 맵으로 연결됩니다(루트 HTML에 Kakao Maps SDK 참조, React 프런트에는 지도 기능 미구현).
-- API 키는 **서버 메모리(`os.environ`)에만 저장**되며, 파일에는 저장되지 않습니다. 서버 재시작 시 소멸합니다. 브라우저 localStorage에 저장되지 않습니다.
+- 프런트(`frontend/src/lib/api.ts`, `frontend/src/main.tsx`)는 `http://127.0.0.1:8899`로 직접 호출하며, API 키와 사용자 입력은 백엔드 경유 없이 클라이언트 쪽에 노출되지 않습니다.
 - 프런트(`frontend/src/lib/api.ts`)는 `http://127.0.0.1:8899`를 하드코딩하고 있어, 배포 시 모든 API 호출이 실패합니다(`VITE_*` 환경변수 미사용).
 
 ## 8. 현재 검증 상태
+
+| 항목 | 결과 | 비고 |
+|------|------|------|
+| 백엔드 API (`GET /api/health`, `POST /api/course`) | 검증됨 | curl/TestClient로 200 + `answer` 구조 확인 |
+| 백엔드 API (`POST /api/settings` 403 제어) | 검증됨 | `ENABLE_SETTINGS` 미설정 시 403 |
+| 프런트 빌드 (`npm run build`) | 검증됨 | `tsc && vite build` 성공 |
+| 프런트 정적 서빙 | 부분 검증 | python `http.server`는 정상, `vite preview`는 이 환경에서 무응답 (원인 미상) |
+| CORS preflight | 부분 검증 | 검증 origin(`http://127.0.0.1:5188`)에서는 `access-control-allow-origin` 반환 확인. 허용 목록 외 origin에도 헤더가 반환되는 현상은 확인되었으나, 원인 미확인(보안 문제) |
+| 브라우저 렌더링 연동 | 미실행(원인: vite preview 무응답) | vite preview가 요청에 응답하지 않아 Playwright 검증 불가 (원인 미상) |
+| 프런트→백엔드 실제 호출 (브라우저 관점) | 미실행(원인: vite preview 무응답) | CORS 원인という 표현은 사용하지 않음 |
+
+
+| 항목 | 결과 | 비고 |
+|------|------|------|
+| 백엔드 API (`GET /api/health`, `POST /api/course`) | 검증됨 | curl/TestClient로 200 + `answer` 구조 확인 |
+| 백엔드 API (`POST /api/settings` 403 제어) | 검증됨 | `ENABLE_SETTINGS` 미설정 시 403 |
+| 프런트 빌드 (`npm run build`) | 검증됨 | `tsc && vite build` 성공 |
+| 프런트 정적 서빙 | 부분 검증 | python `http.server`는 정상, `vite preview`는 이 환경에서 무응답 (원인 미상) |
+| CORS preflight | 부분 검증 | 검증 origin(`http://127.0.0.1:5188`)에서는 `access-control-allow-origin` 반환 확인. 허용 목록 외 origin에도 헤더가 반환되는 현상은 확인되었으나, 원인 미확인(보안 문제) |
+| 브라우저 렌더링 연동 | 미실행(원인: vite preview 무응답) | vite preview가 요청에 응답하지 않아 Playwright 검증 미실행 |
+| 프런트→백엔드 실제 호출 (브라우저 관점) | 미실행(원인: vite preview 무응답) | 브라우저 관점 실제 호출 미실행 — CORS 원인이라는 표현은 사용하지 않음 |
+
 
 | 항목 | 결과 | 비고 |
 |------|------|------|

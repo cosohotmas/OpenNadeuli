@@ -7,7 +7,7 @@ AI 코딩 에이전트(Claude Code, Codex, Cursor 등)가 이 저장소에서 �
 오픈나들이(OpenNadeuli)는 휠체어·보행 약자를 위한 무장애 관광 AI 에이전트 웹앱입니다.
 일상 대화 한마디로 공공 무장애 데이터(한국관광공사 열린관광지, 국립공원공단·지자체 무장애 탐방로, 소상공인 상권정보)를 조합해 헛걸음 없는 나들이 코스를 제안합니다.
 
-- 구조: 루트(Vanilla JS 정적 앱, 레거시/병행 운영) + `frontend/`(Vite+React+TypeScript) + `backend/`(Python·FastAPI)
+- 구조: 루트(Vanilla JS 정적 앱, 지위 미정 TODO(확인 필요)) + `frontend/`(Vite+React+TypeScript) + `backend/`(Python·FastAPI)
 - 프런트: React 18 + TypeScript + Vite, `http://127.0.0.1:8899` 백엔드 직접 호출 (Vite 프록시 미사용, `VITE_*` 환경변수 미사용)
 - 백엔드: FastAPI + uvicorn, 포트 8899, `/api/health`, `/api/course`, `/api/settings` 엔드포인트
 - 실행: 백엔드 `python3 -m uvicorn app:app --host 127.0.0.1 --port 8899`, 프런트 `cd frontend && npm run dev` (포트 5176)
@@ -29,7 +29,7 @@ AI 코딩 에이전트(Claude Code, Codex, Cursor 등)가 이 저장소에서 �
 
 ## 주요 파일 구조
 
-루트(Vanilla JS 정적 앱, 병행 운영 중인 레거시):
+루트(Vanilla JS 정적 앱, 지위 미정 TODO(확인 필요)):
 
 ```
 index.html              단일 실행 파일 (CSS·JS 인라인) — vercel.json 배포 대상 아님
