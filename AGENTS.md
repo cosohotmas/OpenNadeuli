@@ -47,7 +47,7 @@ AI 코딩 에이전트(Claude Code, Codex, Cursor 등)가 이 저장소에서 �
 | 환경변수 | `PORT`, `CORS_ORIGINS`, `KorWithS_End_Point`, `KorWithS_Key`, `SdsC_End_Point`, `SdsC_Key` (`.env.example` 5줄 추가됨) | `app.py`, `backend/src/api/routes.py` |
 | 설정 저장 | 서버 메모리(`os.environ`)만, 파일 미저장, 재시작 시 소멸 | `backend/src/services/tools.py` (`save_settings`) |
 | 도구 목록 | `searchOpenTouristSpots`, `searchAccessibleTrails`, `searchStayHotels`, `searchStepFreeRestaurants` | `backend/src/services/tools.py` (`TOOL_SPECS`) |
-| 지도 | 루트 HTML: 네이버 지도 검색(mapUrl) + 카카오 동선 요약·금리, React 프런트 미도입 | 루트 `index.html`, `frontend/src/App.tsx` |
+| 지도 | 루트 HTML: 네이버 지도 검색(mapUrl) + 카카오 동선 요약, React 프런트 미도입 | 루트 `index.html`, `frontend/src/App.tsx` |
 | API 키 (프런트) | `VITE_*` 미사용, `http://127.0.0.1:8899` 하드코딩 | `frontend/src/lib/api.ts` (알려진 문제: 배포 시 실패) |
 
 ## 주요 파일 구조
@@ -160,7 +160,7 @@ CONVERSATION_LOG.md     작업 기록
 
 이 프로젝트는 `.agents/skills/` 레지스트리와 프로젝트 루트의 `skills.config.json`을 기본 스킬 구성으로 사용합니다.
 
-### 설치 방법 (변경 제안 — PR 설명에 별도 표시)
+### 설치 방법
 
 - 설치 전 **사용자 승인** 필요 (제3자 스킬 전역 설치 금지)
 - 프로젝트 **로컬 설치**만 허용 (`-g` 전역 설치 금지)

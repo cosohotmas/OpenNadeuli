@@ -195,7 +195,7 @@ node serve.mjs 8899   # 포트 8899 (백엔드와 포트 충돌 가능)
 
 ## 5. 프로젝트 구조
 
-루트(Vanilla JS 정적 앱, 병행 운영 중인 레거시):
+루트(Vanilla JS 정적 앱, 지위 미정 TODO(확인 필요)):
 
 ```
 index.html              단일 실행 파일 (CSS·JS 인라인) — vercel.json 배포 대상 아님
@@ -212,7 +212,7 @@ js/
   main.js     진입점
 ```
 
-\`frontend/\`(Vite+React+TypeScript):
+frontend/ (Vite+React+TypeScript):
 
 ```
 package.json            vite, react, typescript, build:vercel 스크립트
