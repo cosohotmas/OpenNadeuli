@@ -1,5 +1,14 @@
 # AGENTS.md
 
+루트(프로젝트 루트):
+app.py                  FastAPI 진입점 (포트 8899, CORS_ORIGINS, 정적 파일 서빙)
+requirements.txt        fastapi, uvicorn, python-dotenv, httpx, pydantic
+test_backend.py         백엔드 로직 테스트 스크립트
+.env.example            API 키 템플릿 (키 이름만, 값 없음)
+vercel.json             Vercel 배포 설정
+.gitignore              제외 파일 설정
+
+backend/(Python·FastAPI):
 src/
   api/
     routes.py           /api/health, /api/course, /api/settings 라우트
@@ -9,11 +18,6 @@ src/
     agent.py            AI 에이전트 파이프라인 (OutingAgent)
     nlu.py              의도 분석기
     tools.py            공공 API 도구 스펙, 라이브/내장 폴백, 설정 저장(os.environ)
-
-루트(프로젝트 루트):
-app.py                  FastAPI 진입점 (포트 8899, CORS_ORIGINS, 정적 파일 서빙)
-requirements.txt        fastapi, uvicorn, python-dotenv, httpx, pydantic
-test_backend.py         백엔드 로직 테스트 스크립트
 
 `frontend/`(Vite+React+TypeScript):
 AI 코딩 에이전트(Claude Code, Codex, Cursor 등)가 이 저장소에서 작업할 때 따르는 공통 지침입니다. 어떤 도구를 쓰든 이 문서를 기준으로 합니다.
@@ -61,8 +65,6 @@ js/
   nlu.js      규칙 기반 의도 분석기
   tools.js    도구 정의·라이브 API 커넥터·필터링·설정 저장소
   agent.js    파이프라인 오케스트레이터
-docs/specs/             (없음 — Spec 작성 필요 시 작성)
-docs/adr/               (없음 — ADR 작성 필요 시 작성)
 ```
 
 지원 파일:
@@ -134,9 +136,9 @@ CONVERSATION_LOG.md     작업 기록
 - 백엔드 API: `GET /api/health` 200, `POST /api/course` 200 + `answer` 구조 반환 (curl/TestClient로 검증됨)
 - 프런트 빌드: `cd frontend && npm run build` (`tsc && vite build`) 성공 (검증됨)
 - 프런트 정적 서빙: 부분 검증 (python `http.server`는 정상, `vite preview`는 이 환경에서 무응답, 원인 미상)
-- 브라우저 렌더링 연동: 미검증 (vite preview 서버 hang으로 Playwright 검증 불가, 원인 미상)
-- 프런트→백엔드 실제 호출: 미검증 (브라우저 검증 미실행(원인: vite preview 무응답))
-- CORS preflight: `http://127.0.0.1:5188` 허용 확인 (curl로 검증됨), 허용 목록 외 origin 차단 여부는 미검증(허용 목록 외에도 `access-control-allow-origin`이 반환되는 현상 확인, 보안 문제)
+- 브라우저 렌더링 연동: 미실행(원인: vite preview 무응답)
+- 프런트→백엔드 실제 호출: 미실행(원인: vite preview 무응답)
+- CORS preflight: 부분 검증(검증 origin `http://127.0.0.1:5188`에서는 `access-control-allow-origin` 반환 확인. 허용 목록 외 origin에도 헤더가 반환되는 현상 확인, 원인 미확인(보안 문제))
 - 검증하지 않은 항목을 "완료"라고 말하지 않습니다.
 - 브라우저 검증이 막히면 원인과 함께 "미검증"으로 표기하고, 우회 검증(대체 서버 등)을 썼다면 우회 사실을 기록합니다.
 
