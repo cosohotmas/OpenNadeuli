@@ -24,3 +24,9 @@ build/
 __pycache__/
 *.pyc
 .cache/
+# 의존성·도구 캐시
+node_modules/
+.vite/
+.venv/
+.pytest_cache/
+.ruff_cache/
