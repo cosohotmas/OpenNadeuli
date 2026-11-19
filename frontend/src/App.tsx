@@ -1,3 +1,4 @@
+import { regionOptions, resolveSearchRegion, revealDelay, scrollToResponse } from './lib/search-flow.js';
 import './card-metadata.css';
 import React, { useState, useEffect, useRef } from 'react';
 import { kakaoLinks } from './lib/kakao-route.js';
@@ -84,6 +85,8 @@ const App = () => {
   const [activeDay, setActiveDay] = useState<'d1' | 'd2'>('d1');
   const [inputValue, setInputValue] = useState('');
   const [loading, setLoading] = useState(false);
+  const [region, setRegion] = useState('');
+  const [pending, setPending] = useState<{ id: number; stage: string } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [invitePlaces, setInvitePlaces] = useState<CourseCard[]>([]);
   const [inviteText, setInviteText] = useState('');
@@ -92,16 +95,18 @@ const App = () => {
   const busy = useRef(false);
   const inviteDialogRef = useRef<HTMLDialogElement>(null);
   const resultMaps = useRef(new Map<number, CourseMapHandle>());
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
+  const responseStart = useRef<HTMLDivElement>(null);
+  const pendingId = pending?.id;
   useEffect(() => {
-    const lastMessage = messages[messages.length - 1];
-    const resultMap = lastMessage?.route?.points.length
-      ? document.getElementById(`course-route-${lastMessage.id}`)
-      : null;
-    if (resultMap) resultMap.scrollIntoView({ block: 'start' });
-    else messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (pendingId != null) scrollToResponse(responseStart.current);
+  }, [pendingId]);
+
+  const lastAnswer = messages[messages.length - 1];
+  useEffect(() => {
+    if (lastAnswer?.type === "agent" && lastAnswer.id !== 0) {
+      scrollToResponse(document.getElementById(`response-${lastAnswer.id}`));
+    }
+  }, [lastAnswer]);
 
   const sendMessage = async (text: string) => {
     const message = text.trim();
@@ -121,9 +126,13 @@ const App = () => {
     setInputValue('');
     setToast(null);
     setLoading(true);
+    setPending({ id: answerId, stage: "요청 분석 중" });
 
     try {
-      const response = await postCourse(message, schedule);
+      const report = (stage: string) => setPending({ id: answerId, stage });
+      const location = await resolveSearchRegion(message, region, report);
+      report('관광지·편의시설 조회 및 동선 구성 중');
+      const response = await postCourse(message, schedule, location);
       const answer = response.answer;
       if (!answer) throw new Error('Missing course answer');
       const names: Record<string, string> = {
@@ -136,7 +145,7 @@ const App = () => {
       };
       const statuses = { success: '조회 완료', empty: '조건에 맞는 결과 없음', unavailable: '조회 실패', skipped: '조회 보류' };
       const steps: CourseStep[] = response.events.flatMap((event): CourseStep[] => {
-        if (event.type === 'status') return [{ title: event.step ?? '요청 분석', detail: event.detail }];
+        if (event.type === 'status') return [{ title: event.step ?? '요청 분석', detail: event.detail, done: '완료' }];
         if (event.type !== 'toolDone' || !event.result) return [];
         const result = event.result;
         return [{
@@ -163,6 +172,7 @@ const App = () => {
     } finally {
       busy.current = false;
       setLoading(false);
+      setPending(null);
     }
   };
 
@@ -219,14 +229,14 @@ const App = () => {
 
       <main className="chat" aria-live="polite" aria-label="오픈나들이 AI 에이전트 대화">
         {messages.map((msg) => (
-          <div key={msg.id} className={`msg ${msg.type}`}>
+          <div id={`response-${msg.id}`} key={msg.id} className={`msg ${msg.type} search-response`}>
             {msg.type === 'agent' && <div className="avatar" aria-hidden="true">🌿</div>}
             <div className="bubble">
               {msg.text && <p>{msg.text}</p>}
               {!!msg.steps?.length && (
                 <ol className="agent-timeline" aria-label="코스 조합 과정">
                   {msg.steps.map((step, index) => (
-                    <li key={index}>
+                    <li key={index} className="search-reveal" style={{ "--search-delay": `${revealDelay(index)}ms` } as React.CSSProperties}>
                       <span className="step-mark" aria-label={step.done ? '완료' : '진행 중'}>{step.done ? '✓' : '…'}</span>
                       <div>
                         <strong>{step.title}</strong>
@@ -240,26 +250,14 @@ const App = () => {
                   ))}
                 </ol>
               )}
-              {msg.intro && <p>{msg.intro}</p>}
+              {msg.intro && <p className="search-reveal" style={{ "--search-delay": `${revealDelay(msg.steps?.length || 0)}ms` } as React.CSSProperties}>{msg.intro}</p>}
               {!!msg.labels?.length && (
                 <ul className="intent-labels" aria-label="요청 조건">
                   {msg.labels.map((label) => <li key={label}>{label}</li>)}
                 </ul>
               )}
-              {!!msg.route?.points.length && (
-                <section id={`course-route-${msg.id}`} className="route-summary" aria-label="이번 나들이 전체 동선 요약">
-                  <div className="section-heading">
-                    <h2>📋 이번 나들이 전체 동선 요약</h2>
-                    <button className="btn" type="button" onClick={() => openInvite(msg)}>초대장 보기</button>
-                  </div>
-                  <CourseMap points={msg.route.points} ref={(map) => {
-                    if (map) resultMaps.current.set(msg.id, map);
-                    else resultMaps.current.delete(msg.id);
-                  }} />
-                </section>
-              )}
               {msg.cards && msg.cards.length > 0 && (
-                <div className="course-cards">
+                <div className="course-cards search-reveal" style={{ "--search-delay": `${revealDelay((msg.steps?.length || 0) + 2)}ms` } as React.CSSProperties}>
                   {msg.cards.map((card) => (
                     <article key={card.no} className="card">
                       <div className="card-header">
@@ -298,7 +296,7 @@ const App = () => {
                 </div>
               )}
               {(!!msg.summary?.length || !!msg.transitStations?.length || !!msg.nearbyFacilities?.length) && (
-                <section className="checkpoints">
+                <section className="checkpoints search-reveal" style={{ "--search-delay": "680ms" } as React.CSSProperties}>
                   <h2>안심 체크포인트</h2>
                   {!!msg.summary?.length && <ul>{msg.summary.map((line) => <li key={line}>{line}</li>)}</ul>}
                   {!!msg.transitStations?.length && <div>
@@ -312,9 +310,21 @@ const App = () => {
                 </section>
               )}
               {!!msg.visitNotes?.length && (
-                <section className="checkpoints">
+                <section className="checkpoints search-reveal" style={{ "--search-delay": "680ms" } as React.CSSProperties}>
                   <h2>방문 전 확인 메모</h2>
                   <ul>{msg.visitNotes.map((note) => <li key={note}>{note}</li>)}</ul>
+                </section>
+              )}
+              {!!msg.route?.points.length && (
+                <section id={`course-route-${msg.id}`} className="route-summary search-reveal" style={{ "--search-delay": "740ms" } as React.CSSProperties} aria-label="이번 나들이 전체 동선 요약">
+                  <div className="section-heading">
+                    <h2>📋 이번 나들이 전체 동선 요약</h2>
+                    <button className="btn" type="button" onClick={() => openInvite(msg)}>초대장 보기</button>
+                  </div>
+                  <CourseMap points={msg.route.points} ref={(map) => {
+                    if (map) resultMaps.current.set(msg.id, map);
+                    else resultMaps.current.delete(msg.id);
+                  }} />
                 </section>
               )}
               {!!msg.cards?.length && (
@@ -340,10 +350,21 @@ const App = () => {
             </div>
           </div>
         ))}
-        <div ref={messagesEndRef} />
+        {pending && <div ref={responseStart} className="msg agent search-response">
+          <div className="avatar" aria-hidden="true">🌿</div>
+          <div className="bubble search-progress" role="status">
+            <span className="search-spinner" aria-hidden="true" />{pending.stage}
+          </div>
+        </div>}
       </main>
 
       <div className="composer">
+        <label className="search-region">검색 지역
+          <select value={region} onChange={(event) => setRegion(event.target.value)} disabled={loading}>
+            <option value="">자동 · 현재 위치 사용</option>
+            {regionOptions.map((option) => <option key={option}>{option}</option>)}
+          </select>
+        </label>
         <div className="quick-questions" aria-label="빠른 질문">
           {quickQuestions.map((question) => (
             <button key={question} className="chip" type="button" disabled={loading}

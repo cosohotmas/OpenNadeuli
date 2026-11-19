@@ -196,9 +196,19 @@ def visit_slots(hours, schedule, day):
     return sorted(slots, key=lambda slot: slot[0])
 
 
-async def public_course(text, schedule):
+async def public_course(text, schedule, requested_region=None, region_source=None):
     intent = parse_intent(text)
-    region = intent.region or default_region(intent.themes)
+    chosen = requested_region if requested_region in DISTRICTS else None
+    region = intent.region or chosen or default_region(intent.themes)
+    if intent.region:
+        basis = "질문에 지정한 지역"
+    elif chosen:
+        basis = "현재 위치 기준" if region_source == "location" else "선택 지역 기준"
+    elif region_source == "location_unavailable":
+        basis = "현재 위치 확인 불가 · 기본 지역"
+    else:
+        basis = "기본 지역"
+    region_label = f"검색 지역 · {region} ({basis})"
     events = []
     cards = []
     tour_key = api_key("OPENNADEULI_SEARCHOPENTOURISTSPOTS", "KorWithS_Key")
@@ -224,7 +234,7 @@ async def public_course(text, schedule):
             {"type": "toolDone", "step": name, "result": outcome},
         ])
 
-    events.append({"type": "status", "step": "요청 분석", "detail": f"{region} · {'1박 2일' if overnight else '당일'}"})
+    events.append({"type": "status", "step": "요청 분석", "detail": f"{region_label} · {'1박 2일' if overnight else '당일'}"})
     if not intent.restaurants_only:
         log_tool("searchAccessibleTrails", {"region": region}, "skipped", None,
                  note="공식 최대 경사도 원본이 확정되지 않아 탐방로를 제외했어요.")
@@ -453,7 +463,7 @@ async def public_course(text, schedule):
              if cards else f"{region}에서 조건에 맞는 결과가 없어요.")
     if any(result["status"] == "unavailable" for result in tool_results):
         intro += " 일부 공공데이터는 조회하지 못했어요."
-    answer = {"type": "course", "intro": intro, "labels": intent.labels, "cards": cards,
+    answer = {"type": "course", "intro": intro, "labels": [region_label, *[label for label in intent.labels if not label.startswith("지역 ·")]], "cards": cards,
               "summary": summary, "visitNotes": visit_notes, "transitStations": transit_stations, "nearbyFacilities": nearby_facilities, "route": {"points": points}, "invite": invite, "followups": followups}
     return {"answer": answer, "events": events + [{"type": "answer", "answer": answer}],
             "sourceType": "live_api" if successful else None}

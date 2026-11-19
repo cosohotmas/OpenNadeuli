@@ -17,7 +17,7 @@ export class CourseApiError extends Error {
   }
 }
 
-export async function requestCourse(text, schedule) {
+export async function requestCourse(text, schedule, region = {}) {
   if (window.location.protocol === 'file:' || !navigator.onLine) {
     throw new CourseApiError('온라인 코스 API에 연결할 수 없어요.', true);
   }
@@ -27,7 +27,7 @@ export async function requestCourse(text, schedule) {
     const response = await fetch(`${base}/course`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, schedule }),
+      body: JSON.stringify({ text, schedule, ...region }),
       signal: controller.signal,
     });
     if (!response.ok) {

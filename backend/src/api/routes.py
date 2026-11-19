@@ -47,6 +47,8 @@ class CourseSchedule(BaseModel):
 class CourseRequest(BaseModel):
     text: str
     schedule: Optional[CourseSchedule] = None
+    region: str | None = None
+    regionSource: Literal["selected", "location", "location_unavailable"] | None = None
 
 
 class SettingsRequest(BaseModel):
@@ -65,7 +67,7 @@ async def course(req: CourseRequest) -> Dict[str, Any]:
     """나들이 코스 추천."""
     if os.getenv("OPENNADEULI_USE_LIVE", "true").strip().lower() not in {"false", "0", "no"}:
         try:
-            return await public_course(req.text, (req.schedule or CourseSchedule()).model_dump())
+            return await public_course(req.text, (req.schedule or CourseSchedule()).model_dump(), req.region, req.regionSource)
         except PublicDataUnavailable:
             raise HTTPException(status_code=503, detail="공공데이터 조회를 완료하지 못했어요.") from None
     agent = get_agent()
