@@ -102,8 +102,13 @@ async def tour_candidate(client, row, key, fetched_at, kind):
             if value and value.replace(" ", "").lower() not in NO_DATA:
                 attributes.append({"label": label, "value": value, "field": field})
     lat, lng = coordinates(row, "mapy", "mapx")
-    notice = ("객실·욕실 구조, 휠체어 이용 가능 객실 및 운영 여부를 확인해 주세요."
-              if kind == "숙박" else "입구 단차, 운영시간과 필요한 편의시설의 현재 상태를 확인해 주세요.")
+    fields = {attribute["field"] for attribute in attributes}
+    unknown = []
+    if not fields.intersection({"exit", "route"}):
+        unknown.append("입구 단차")
+    if kind == "숙박" and "room" not in fields:
+        unknown.append("휠체어 이용 객실·욕실 구조")
+    notice = ", ".join(unknown) + " 확인" if unknown else ""
     return {
         "name": row["title"], "address": row.get("addr1") or "", "kind": kind,
         "emoji": "🏨" if kind == "숙박" else "📍", "lat": lat, "lng": lng,
@@ -111,6 +116,31 @@ async def tour_candidate(client, row, key, fetched_at, kind):
         "sourceUpdatedAt": row.get("modifiedtime") or None, "accessibilityFetchedAt": detail_at,
         "verifiedAttributes": attributes, "verificationNotice": notice,
     }
+
+
+# Window bounds and preferred times are minutes since midnight.
+VISIT_WINDOWS = (
+    ("관광", 540, 690, 540, None),
+    ("점심", 660, 840, 690, "meal"),
+    ("관광", 750, 930, 810, None),
+    ("카페", 840, 1020, 930, "cafe"),
+    ("관광", 960, 1140, 1020, None),
+    ("저녁", 1020, 1230, 1110, "meal"),
+    ("숙소", 1050, 1440, 1200, "hotel"),
+)
+
+
+def visit_slots(hours, schedule, day):
+    start, end = hours["s"] * 60, hours["e"] * 60
+    slots = []
+    for phase, opens, closes, preferred, option in VISIT_WINDOWS:
+        if (option and not schedule[option]) or (phase == "숙소" and day != 1):
+            continue
+        first, last = max(start, opens), min(end, closes)
+        if first < last:
+            minute = max(first, min(preferred, last - 30))
+            slots.append((minute, phase, last))
+    return sorted(slots, key=lambda slot: slot[0])
 
 
 async def public_course(text, schedule):
@@ -145,12 +175,14 @@ async def public_course(text, schedule):
     if not intent.restaurants_only:
         log_tool("searchAccessibleTrails", {"region": region}, "skipped", None,
                  note="공식 최대 경사도 원본이 확정되지 않아 탐방로를 제외했어요.")
-    needs_meal = intent.restaurants_only or (schedule["meal"] and any(d["s"] < 14 and d["e"] > 11 for d in days))
-    needs_cafe = (intent.restaurants_only and "카페만" in text
-                  or not intent.restaurants_only and schedule["cafe"]
-                  and any(d["s"] < 17 and d["e"] > 13 for d in days))
-    needs_hotel = overnight and schedule["hotel"] and not intent.restaurants_only and days[0]["e"] > 17
-    wants_spots = not intent.restaurants_only and (intent.spots_list or any(d["s"] < 19 and d["e"] > 9 for d in days))
+    day_slots = [visit_slots(hours, schedule, day if overnight else 0)
+                 for day, hours in enumerate(days, 1)]
+    phases = [phase for slots in day_slots for _, phase, _ in slots]
+    spot_limit = 6 if intent.spots_list else phases.count("관광")
+    needs_meal = intent.restaurants_only or any(phase in phases for phase in ("점심", "저녁"))
+    needs_cafe = "카페만" in text if intent.restaurants_only else "카페" in phases
+    needs_hotel = "숙소" in phases and not (intent.restaurants_only or intent.spots_list)
+    wants_spots = not intent.restaurants_only and (intent.spots_list or "관광" in phases)
     needs_shops = (needs_meal or needs_cafe) and not intent.spots_list
     tls_context = ssl.create_default_context(cafile=os.environ["SSL_CERT_FILE"]) if os.getenv("SSL_CERT_FILE") else truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
 
@@ -206,7 +238,7 @@ async def public_course(text, schedule):
                     "sourceType": "live_api", **SHOP_SOURCE, "fetchedAt": fetched,
                     "sourceUpdatedAt": updated, "verifiedAttributes": [],
                     "verificationNotice": "출입구 턱, 휠체어 좌석, 화장실과 영업 여부를 확인해 주세요.",
-                    "details": {"업종": category} if category else {},
+                    "details": {"업종": category} if category else {}, "_shopId": identity,
                 })
             count = (len(meals) if needs_meal and "카페만" not in text else 0) + (len(cafes) if needs_cafe else 0)
             log_tool("searchNearbyRestaurants", args, "success" if count else "empty", SHOP_SOURCE, fetched, updated, count,
@@ -215,21 +247,22 @@ async def public_course(text, schedule):
 
         async def attractions():
             candidates = await tourism("searchOpenTouristSpots", 14 if intent.indoor_only else 12, tour_key,
-                                       "문화시설" if intent.indoor_only else "관광지", 6 if intent.spots_list else 4)
-            anchor = next(((p["lat"], p["lng"], p["name"]) for p in candidates if p["lat"] is not None), None)
-            return candidates, anchor
+                                       "문화시설" if intent.indoor_only else "관광지", spot_limit)
+            return candidates
 
         async def lodging():
             return await tourism("searchStayHotels", 32, hotel_key, "숙박", 2) if needs_hotel else []
 
         async def places_and_food():
-            places, anchor = await attractions() if wants_spots else ([], None)
-            if not anchor and (center := REGION_CENTER.get(region)):
-                anchor = (float(center["y"]), float(center["x"]), f"{region} 지역 기준점")
-            meals, cafes = await shops(anchor) if needs_shops else ([], [])
-            return places, meals, cafes
+            places = await attractions() if wants_spots else []
+            anchors = list(dict.fromkeys((p["lat"], p["lng"], p["name"])
+                                        for p in places if p["lat"] is not None and p["lng"] is not None))
+            if not anchors and (center := REGION_CENTER.get(region)):
+                anchors = [(float(center["y"]), float(center["x"]), f"{region} 지역 기준점")]
+            pools = await asyncio.gather(*(shops(anchor) for anchor in anchors or [None])) if needs_shops else []
+            return places, dict(zip(anchors, pools))
 
-        (places, meals, cafes), hotels = await asyncio.gather(places_and_food(), lodging())
+        (places, nearby), hotels = await asyncio.gather(places_and_food(), lodging())
 
     successful = any(result["status"] in {"success", "empty"} for result in tool_results)
     if not successful and any(result["status"] == "unavailable" for result in tool_results):
@@ -239,40 +272,52 @@ async def public_course(text, schedule):
         if not candidate:
             return
         card = {**candidate, "no": len(cards) + 1, "phase": phase, "badges": [],
-                "tip": "", "day": day, "time": f"{hour:02d}:00" if hour is not None else None}
+                "tip": "", "day": day, "time": f"{hour // 60:02d}:{hour % 60:02d}" if hour is not None else None}
         cards.append(card)
 
+    used_shops = set()
+
+    def take_shop(phase, anchor=None):
+        index = int(phase == "카페")
+        pools = [nearby[anchor]] if anchor in nearby else nearby.values()
+        for pool in pools:
+            for candidate in pool[index]:
+                identity = candidate["_shopId"]
+                if identity not in used_shops:
+                    used_shops.add(identity)
+                    return {key: value for key, value in candidate.items() if key != "_shopId"}
+        return None
+
     if intent.restaurants_only:
-        candidates = cafes if "카페만" in text else meals
-        for candidate in candidates[:4]:
-            add(candidate, "후보")
+        for _ in range(4):
+            add(take_shop("카페" if "카페만" in text else "식사"), "후보")
     elif intent.spots_list:
         for candidate in places[:6]:
             add(candidate, "후보")
     else:
-        for day, hours in enumerate(days, 1):
-            start, end = hours["s"], hours["e"]
-            slots = []
-            if places and max(9, start) < min(end, 19):
-                slots.append((max(9, start), places.pop(0), "관광"))
-            if needs_meal and meals and max(11, start) < min(14, end):
-                slots.append((max(11, start), meals.pop(0), "식사"))
-            if needs_cafe and cafes and max(14, start) < min(17, end):
-                slots.append((max(14, start), cafes.pop(0), "카페"))
-            if day == 1 and hotels and max(17, start) < end:
-                slots.append((max(17, start), hotels[0], "숙소"))
-            occupied = start - 1
-            for hour, candidate, phase in sorted(slots, key=lambda slot: slot[0]):
-                hour = max(hour, occupied + 1)
-                if hour >= end or (phase == "식사" and hour >= 14) or (phase == "카페" and hour >= 17):
+        for day, slots in enumerate(day_slots, 1):
+            occupied = -60
+            anchor = None
+            for minute, phase, closes in slots:
+                minute = max(minute, occupied + 60)
+                if minute >= closes:
                     continue
-                add(candidate, phase, day, hour)
-                occupied = hour
+                if phase == "관광":
+                    candidate = places.pop(0) if places else None
+                    if candidate:
+                        anchor = (candidate["lat"], candidate["lng"], candidate["name"])
+                elif phase == "숙소":
+                    candidate = hotels[0] if hotels else None
+                else:
+                    candidate = take_shop(phase, anchor)
+                if candidate:
+                    add(candidate, phase, day, minute)
+                    occupied = minute
 
     points = [{**c, "query": c["address"] or c["name"], "queryAlt": c["name"],
                "barrier": [f'{v["label"]} · {v["value"]}' for v in c["verifiedAttributes"]] +
-                          [f'현장·유선 확인 권장 · {c["verificationNotice"]}']} for c in cards]
-    summary = [f'{card["name"]} · {card["verificationNotice"]}' for card in cards]
+                          ([f'현장·유선 확인 권장 · {c["verificationNotice"]}'] if c["verificationNotice"] else [])} for c in cards]
+    summary = [f'{card["name"]} · {card["verificationNotice"]}' for card in cards if card["verificationNotice"]]
     invite = "\n".join([f"[오픈나들이] {region} 방문 후보"] + [
         f'{point["no"]}. {point["day"] or ""}{("일차 " + point["time"] + " · ") if point["time"] else ""}'
         f'{point["name"]} — {point["address"]}\n   ' + " / ".join(point["barrier"])

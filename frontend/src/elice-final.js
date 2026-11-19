@@ -1,5 +1,5 @@
 import { CourseApiError, requestCourse, sourceLabel, sourceLines } from "./lib/course-client.js";
-import { enqueueGeocode, ensureKakao, geocodePoint } from "./lib/kakao-route.js";
+import { enqueueGeocode, ensureKakao, geocodePoint, kakaoLinks } from "./lib/kakao-route.js";
 import { BADGE_DEFS, DEFAULT_SETTINGS, OutingAgent, TOOL_SPECS, buildSchedule } from "./lib/outing-engine.js";
 
 /* ====== js/ui.js ====== */
@@ -279,7 +279,7 @@ function renderAnswer(content, chips, answer) {
   if (answer.invite) {
     const row = el("div", "invite-row");
     const btn = el("button", "btn btn-primary btn-lg", "💌 가족 단톡방용 초대장 만들기");
-    btn.addEventListener("click", () => openInvite(answer.invite));
+    btn.addEventListener("click", () => openInvite(answer.invite, answer.cards));
     row.appendChild(btn);
     content.appendChild(row);
   }
@@ -314,11 +314,10 @@ function renderCard(c, focusVisit) {
       ${attributes.length ? `<div class="card-details"><b>공공데이터에 기재</b>${attributes.map((a) => `<span>${esc(a.label)} · ${esc(a.value)}</span>`).join("")}</div>` : ""}
       ${c.verificationNotice ? `<p class="step-note"><b>현장·유선 확인 권장</b> · ${esc(c.verificationNotice)}</p>` : ""}
       ${c.tip ? `<div class="card-tip">💡 ${esc(c.tip)}</div>` : ""}
-      <div class="card-links"><a href="${mapUrl(c.mapQuery || [c.name, c.address].filter(Boolean).join(" "))}" target="_blank" rel="noopener">🗺️ 지도에서 보기</a></div>
+      <div class="card-links">${focusVisit ? '<button type="button" class="btn">내장 지도 위치</button>' : ''} ${mapLinksHtml(c)}</div>
     </div>`;
-  card.querySelector(".card-links a").addEventListener("click", (event) => {
-    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-    if (focusVisit?.(c.no)) event.preventDefault();
+  card.querySelector(".card-links button")?.addEventListener("click", () => {
+    if (!focusVisit(c.no)) toast("내장 지도에서 이 장소의 위치를 표시할 수 없어요.");
   });
   return card;
 }
@@ -329,7 +328,11 @@ function badgeHtml(key, note) {
   return `<span class="badge b-${key}" title="${esc(note || d.label)}">${d.emoji} ${esc(note || d.label)}</span>`;
 }
 
-const mapUrl = (q) => `https://map.naver.com/p/search/${encodeURIComponent(q)}`;
+function mapLinksHtml(place) {
+  const { map, directions } = kakaoLinks(place);
+  const link = (url, label) => `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+  return link(map, "카카오맵에서 열기 ↗") + (directions ? " " + link(directions, "길찾기 ↗") : "");
+}
 
 /* ==================== 전체 동선 요약 + 인라인 지도 (카카오맵) ==================== */
 
@@ -341,7 +344,7 @@ function renderRouteSection(content, answer) {
   const head = el("div", "route-head");
   head.innerHTML = `<h2>📋 이번 나들이 전체 동선 요약</h2>`;
   const inviteBtn = el("button", "btn btn-sm", "💌 초대장 보기");
-  inviteBtn.addEventListener("click", () => openInvite(answer.invite));
+  inviteBtn.addEventListener("click", () => openInvite(answer.invite, answer.cards));
   head.appendChild(inviteBtn);
   sec.appendChild(head);
 
@@ -421,7 +424,8 @@ function renderRouteSection(content, answer) {
         <div class="route-popup">
           <b>${p.no}. ${esc(p.name)}</b>
           <span class="popup-addr">${esc(p.phase)} · 📍 ${esc(p.address || p.query)}</span>
-          <span class="popup-badges">${p.barrier.map((b) => `<i>✅ ${esc(b)}</i>`).join("")}</span>
+          <span class="popup-badges">${p.barrier.map((b) => `<i>${esc(b)}</i>`).join("")}</span>
+          <div>${mapLinksHtml(p)}</div>
         </div>`;
 
       /* 방문 순서대로 폴리라인 갱신 + 배치된 핀 기준 화면 맞춤 */
@@ -450,10 +454,10 @@ function renderRouteSection(content, answer) {
         map.setBounds(bounds);
       };
 
-      const focus = (i, position) => {
+      const focus = (i, position, coordinates) => {
         focused = true;
         map.panTo(position);
-        infoWin.setContent(popupHtml(pts[i]));
+        infoWin.setContent(popupHtml({ ...pts[i], ...coordinates }));
         infoWin.setPosition(position);
         infoWin.open(map);
       };
@@ -472,10 +476,10 @@ function renderRouteSection(content, answer) {
         pin.type = "button";
         pin.setAttribute("aria-label", `${pts[i].no}번 ${pts[i].name} 무장애 정보`);
         pin.appendChild(el("span", "", String(pts[i].no)));
-        pin.addEventListener("click", () => focus(i, position));
+        pin.addEventListener("click", () => focus(i, position, c));
         visitActions.set(pts[i].no, () => {
           pin.focus({ preventScroll: true });
-          focus(i, position);
+          focus(i, position, c);
         });
         group.appendChild(pin);
         placed[i] = c;
@@ -584,12 +588,14 @@ function resetChat() {
 
 let currentInvite = "";
 
-function openInvite(text) {
+function openInvite(text, places = []) {
+  if (places.length) text += "\n\n카카오맵\n" + places.map((place) => `${place.name} ${kakaoLinks(place).map}`).join("\n");
   currentInvite = text;
   const body = $("#invitePreview");
   body.innerHTML = `<div class="invite-card">
     <div class="invite-card-head">💌 오픈나들이 · 가족 초대장</div>
     <div class="invite-card-body">${esc(text)}</div>
+    ${places.map((place) => `<div class="card-links"><b>${esc(place.name)}</b> ${mapLinksHtml(place)}</div>`).join("")}
   </div>`;
   $("#inviteText").value = text;
   openModal(refs.inviteModal);
