@@ -1,4 +1,5 @@
-import { CourseApiError, requestCourse, sourceLabel, sourceLines } from "./lib/course-client.js";
+import './card-metadata.css';
+import { cardMetadata, CourseApiError, requestCourse, sourceLabel, sourceLines } from "./lib/course-client.js";
 import { enqueueGeocode, ensureKakao, geocodePoint, kakaoLinks } from "./lib/kakao-route.js";
 import { BADGE_DEFS, DEFAULT_SETTINGS, OutingAgent, TOOL_SPECS, buildSchedule } from "./lib/outing-engine.js";
 
@@ -290,9 +291,7 @@ function renderAnswer(content, chips, answer) {
 function renderCard(c, focusVisit) {
   const card = el("article", "card");
   const phase = c.time ? `${c.day ? `${c.day}일차 ` : ""}${c.time} · ${c.phase}` : c.phase;
-  const details = Array.isArray(c.details) ? c.details : Object.entries(c.details || {});
-  const source = sourceLabel(c.sourceType) ? sourceLines(c).join(" · ") : "";
-  const attributes = c.verifiedAttributes || [];
+  const { chips, fields } = cardMetadata(c);
   card.innerHTML = `
     <div class="card-rail">
       <div class="card-order"><span class="no">${c.no}</span></div>
@@ -308,11 +307,12 @@ function renderCard(c, focusVisit) {
       </div>
       <div class="card-addr">📍 ${esc(c.address)}</div>
       <div class="badges">${(c.badges || []).map((k) => badgeHtml(k, c.badgeNote?.[k]) || `<span class="badge">${esc(k)}</span>`).join("")}</div>
-      ${details.length ? `<div class="card-details">${details.map(([k, v]) => `<span><b>${esc(k)}</b> ${esc(v)}</span>`).join("")}</div>` : ""}
-      ${source ? `<p class="step-detail">${esc(source)}</p>` : ""}
-      ${c.accessibilityFetchedAt ? `<p class="step-detail">무장애 상세 조회 ${esc(c.accessibilityFetchedAt)}</p>` : ""}
-      ${attributes.length ? `<div class="card-details"><b>공공데이터에 기재</b>${attributes.map((a) => `<span>${esc(a.label)} · ${esc(a.value)}</span>`).join("")}</div>` : ""}
-      ${c.verificationNotice ? `<p class="step-note"><b>현장·유선 확인 권장</b> · ${esc(c.verificationNotice)}</p>` : ""}
+      ${chips.length ? `<div class="course-meta-chips">${chips.map(({ tone, text }) => `<span class="course-meta-chip course-meta-${tone}">${esc(text)}</span>`).join("")}</div>` : ""}
+      ${fields.length || c.sourceUrl ? `<details class="course-meta-details">
+        <summary>출처·조회정보 보기</summary>
+        <dl>${fields.map(([label, value]) => `<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join("")}</dl>
+        ${c.sourceUrl ? `<a href="${esc(c.sourceUrl)}" target="_blank" rel="noopener noreferrer">공식 원문 ↗</a>` : ""}
+      </details>` : ""}
       ${c.tip ? `<div class="card-tip">💡 ${esc(c.tip)}</div>` : ""}
       <div class="card-links">${focusVisit ? '<button type="button" class="btn">내장 지도 위치</button>' : ''} ${mapLinksHtml(c)}</div>
     </div>`;

@@ -54,3 +54,35 @@ export function sourceLines(source) {
     source.sourceUpdatedAt ? `원본 기준·갱신일 ${source.sourceUpdatedAt}` : '원본 기준·갱신일 미제공',
   ].filter(Boolean);
 }
+
+export function cardMetadata(card) {
+  const chips = [];
+  const fields = [];
+  const source = sourceLabel(card.sourceType);
+  const shop = card.sourceType === 'live_api' && ['식당', '카페'].includes(card.kind);
+  const details = Array.isArray(card.details) ? card.details : Object.entries(card.details || {});
+  if (source) {
+    const period = shop && /^\d{6}$/.test(card.sourceUpdatedAt || '') ? ` · 상권 ${card.sourceUpdatedAt}` : '';
+    chips.push({ tone: 'source', text: source + period });
+    fields.push(['출처', card.provider || source], ['원본 기준·갱신일', card.sourceUpdatedAt || '미제공']);
+  }
+  if (card.fetchedAt) fields.push(['API 조회 시각', card.fetchedAt]);
+  if (card.accessibilityFetchedAt) fields.push(['무장애 상세 조회 시각', card.accessibilityFetchedAt]);
+  details.forEach(([label, value]) => {
+    if (label === '업종') chips.push({ tone: 'neutral', text: `업종: ${value}` });
+    else fields.push([label, value]);
+  });
+  const attributes = card.verifiedAttributes || [];
+  for (const { field, label, value } of attributes) {
+    const shortValue = value.length <= 18 && !/[\r\n]/.test(value) ? `: ${value}` : ' 정보';
+    chips.push({ tone: ['restroom', 'parking'].includes(field) ? 'facility' : 'access',
+      text: label + shortValue });
+    fields.push([`공공데이터에 기재 · ${label}`, value]);
+  }
+  if (card.verificationNotice) {
+    const text = shop ? '출입구 턱·좌석·화장실' : card.verificationNotice.replace(/ 확인$/, '');
+    chips.push({ tone: 'notice', text: `📞 ${text} 현장·유선 확인 권장` });
+    fields.push(['현장·유선 확인 권장', card.verificationNotice]);
+  }
+  return { chips, fields };
+}

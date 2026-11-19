@@ -2,7 +2,12 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 const directory = resolve('dist-offline');
-const html = await readFile(resolve(directory, 'elice-final.html'), 'utf8');
+let html = await readFile(resolve(directory, 'elice-final.html'), 'utf8');
+const styleTag = /<link\b[^>]*\brel="stylesheet"[^>]*\bhref="\/?([^"]+)"[^>]*>/g;
+for (const match of html.matchAll(styleTag)) {
+  const css = await readFile(resolve(directory, match[1]), 'utf8');
+  html = html.replace(match[0], () => `<style>${css}</style>`);
+}
 const moduleTag = /<script\b[^>]*\btype="module"[^>]*\bsrc="\/?([^"]+)"[^>]*><\/script>/;
 const entry = html.match(moduleTag);
 if (!entry) throw new Error('Static backup script was not emitted');
