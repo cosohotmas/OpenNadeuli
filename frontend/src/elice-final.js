@@ -1,5 +1,5 @@
 import './card-metadata.css';
-import { cardMetadata, CourseApiError, requestCourse, sourceLabel, sourceLines } from "./lib/course-client.js";
+import { cardMetadata, familyInvite, CourseApiError, requestCourse, sourceLabel, sourceLines } from "./lib/course-client.js";
 import { enqueueGeocode, ensureKakao, geocodePoint, kakaoLinks } from "./lib/kakao-route.js";
 import { BADGE_DEFS, DEFAULT_SETTINGS, OutingAgent, TOOL_SPECS, buildSchedule } from "./lib/outing-engine.js";
 
@@ -271,16 +271,17 @@ function renderAnswer(content, chips, answer) {
     content.appendChild(rail);
   }
 
-  if (answer.summary?.length) {
+  for (const [title, lines] of [["✅ 안심 체크포인트", answer.summary], ["방문 전 확인 메모", answer.visitNotes]]) {
+    if (!lines?.length) continue;
     const sum = el("div", "summary");
-    sum.innerHTML = `<strong>✅ 안심 체크포인트</strong><ul>${answer.summary.map((s) => `<li>${esc(s)}</li>`).join("")}</ul>`;
+    sum.innerHTML = `<strong>${title}</strong><ul>${lines.map((line) => `<li>${esc(line)}</li>`).join("")}</ul>`;
     content.appendChild(sum);
   }
 
   if (answer.invite) {
     const row = el("div", "invite-row");
     const btn = el("button", "btn btn-primary btn-lg", "💌 가족 단톡방용 초대장 만들기");
-    btn.addEventListener("click", () => openInvite(answer.invite, answer.cards));
+    btn.addEventListener("click", () => openInvite(answer.cards));
     row.appendChild(btn);
     content.appendChild(row);
   }
@@ -344,7 +345,7 @@ function renderRouteSection(content, answer) {
   const head = el("div", "route-head");
   head.innerHTML = `<h2>📋 이번 나들이 전체 동선 요약</h2>`;
   const inviteBtn = el("button", "btn btn-sm", "💌 초대장 보기");
-  inviteBtn.addEventListener("click", () => openInvite(answer.invite, answer.cards));
+  inviteBtn.addEventListener("click", () => openInvite(answer.cards));
   head.appendChild(inviteBtn);
   sec.appendChild(head);
 
@@ -586,18 +587,10 @@ function resetChat() {
 
 /* ============================ 초대장 ============================ */
 
-let currentInvite = "";
-
-function openInvite(text, places = []) {
-  if (places.length) text += "\n\n카카오맵\n" + places.map((place) => `${place.name} ${kakaoLinks(place).map}`).join("\n");
-  currentInvite = text;
-  const body = $("#invitePreview");
-  body.innerHTML = `<div class="invite-card">
-    <div class="invite-card-head">💌 오픈나들이 · 가족 초대장</div>
-    <div class="invite-card-body">${esc(text)}</div>
-    ${places.map((place) => `<div class="card-links"><b>${esc(place.name)}</b> ${mapLinksHtml(place)}</div>`).join("")}
-  </div>`;
-  $("#inviteText").value = text;
+function openInvite(places = []) {
+  $("#inviteLinks").innerHTML = places.map((place) =>
+    `<div class="card-links"><b>${esc(place.name)}</b> ${mapLinksHtml(place)}</div>`).join("");
+  $("#inviteText").value = familyInvite(places);
   openModal(refs.inviteModal);
 }
 
@@ -615,7 +608,7 @@ function fallbackCopy(text, done) {
   ta.style.position = "fixed"; ta.style.opacity = "0";
   document.body.appendChild(ta);
   ta.select();
-  try { document.execCommand("copy"); done(); } catch (_) { toast("복사에 실패했어요. 텍스트를 직접 선택해 주세요."); }
+  try { if (!document.execCommand("copy")) throw new Error("Copy unavailable"); done(); } catch (_) { toast("복사에 실패했어요. 텍스트를 직접 선택해 주세요."); }
   ta.remove();
 }
 

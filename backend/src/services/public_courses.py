@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 import ssl
 from datetime import datetime, timezone
 from urllib.parse import unquote
@@ -87,6 +88,52 @@ def tour_params(region, content_type):
             "lDongRegnCd": DISTRICTS[region], "contentTypeId": content_type, "numOfRows": 12}
 
 
+SHOP_EXCLUDED = re.compile(r"콜라텍|유흥|단란주점|호프|노래방|부동산|공인중개|매매점|중개사무소|출장뷔페")
+ACCESS_MARKERS = {
+    "exit": r"턱이? 없|무단차|휠체어 접근 가능",
+    "route": r"턱이? 없|무단차|휠체어 접근 가능|경사로가? 있",
+    "restroom": r"장애인.*(?:있|설치|구비|이용 가능)",
+    "parking": r"장애인.*(?:있|설치|구비|이용 가능|주차구역|주차장)",
+    "wheelchair": r"대여.*(?:가능|있)|휠체어.*(?:구비|비치)",
+    "elevator": r"(?:엘리베이터|승강기).*(?:있|설치|이용 가능)",
+    "room": r"(?:장애인|휠체어).*(?:있|구비|이용 가능)",
+}
+ACCESS_LIMITATION = re.compile(r"불가|미설치|미구비|않|없|제한|어려")
+STEP_FREE = re.compile(r"(?:단차|턱)이?\s*(?:없음|없습니다|없어|없으므로)")
+
+
+def shop_kind(row):
+    if row.get("indsLclsCd") != "I2" or not row.get("bizesNm"):
+        return None
+    name = " ".join(str(row.get(key) or "") for key in (
+        "bizesNm", "brchNm", "indsMclsNm", "indsSclsNm", "ksicNm",
+    ))
+    if SHOP_EXCLUDED.search(re.sub(r"\s+", "", name)):
+        return None
+    code = str(row.get("ksicCd") or "").upper().removeprefix("I")
+    if code.startswith("5622") or code == "56191":
+        return "카페"
+    if code.startswith("561"):
+        return "식당"
+    if not code:
+        category = str(row.get("indsSclsNm") or "")
+        if re.search(r"카페|커피|제과점|베이커리|빵집", category):
+            return "카페"
+        if re.search(r"음식점|식당|한식|중식|일식|양식|분식|김밥|만두|피자|치킨|햄버거", category):
+            return "식당"
+    return None
+
+
+def confirmed_attributes(attributes):
+    confirmed = []
+    for attribute in attributes:
+        value = attribute["value"]
+        marker = ACCESS_MARKERS.get(attribute["field"])
+        if marker and re.search(marker, value) and not ACCESS_LIMITATION.search(STEP_FREE.sub("", value)):
+            confirmed.append(attribute)
+    return confirmed
+
+
 async def tour_candidate(client, row, key, fetched_at, kind):
     attributes = []
     detail_at = None
@@ -98,7 +145,8 @@ async def tour_candidate(client, row, key, fetched_at, kind):
         details = []
     for item in details[:1]:
         for field, label in TOUR_FIELDS.items():
-            value = str(item.get(field) or "").strip()
+            value = re.sub(r"_+\s*무장애\s*편의시설\s*$", "", str(item.get(field) or "").strip())
+            value = value.replace("_", " ").strip()
             if value and value.replace(" ", "").lower() not in NO_DATA:
                 attributes.append({"label": label, "value": value, "field": field})
     lat, lng = coordinates(row, "mapy", "mapx")
@@ -114,7 +162,8 @@ async def tour_candidate(client, row, key, fetched_at, kind):
         "emoji": "🏨" if kind == "숙박" else "📍", "lat": lat, "lng": lng,
         "sourceType": "live_api", **TOUR_SOURCE, "fetchedAt": fetched_at,
         "sourceUpdatedAt": row.get("modifiedtime") or None, "accessibilityFetchedAt": detail_at,
-        "verifiedAttributes": attributes, "verificationNotice": notice,
+        "verifiedAttributes": attributes, "confirmedAttributes": confirmed_attributes(attributes),
+        "verificationNotice": notice,
     }
 
 
@@ -218,7 +267,8 @@ async def public_course(text, schedule):
                 return [], []
             meals, cafes, seen = [], [], set()
             for row in rows:
-                if row.get("indsLclsCd") != "I2" or not row.get("bizesNm"):
+                kind = shop_kind(row)
+                if not kind:
                     continue
                 name = row["bizesNm"]
                 branch = row.get("brchNm")
@@ -230,7 +280,7 @@ async def public_course(text, schedule):
                     continue
                 seen.add(identity)
                 category = str(row.get("indsSclsNm") or "")
-                is_cafe = any(word in category for word in ("카페", "커피"))
+                is_cafe = kind == "카페"
                 latitude, longitude = coordinates(row, "lat", "lon")
                 (cafes if is_cafe else meals).append({
                     "name": name, "address": address, "kind": "카페" if is_cafe else "식당",
@@ -317,17 +367,36 @@ async def public_course(text, schedule):
     points = [{**c, "query": c["address"] or c["name"], "queryAlt": c["name"],
                "barrier": [f'{v["label"]} · {v["value"]}' for v in c["verifiedAttributes"]] +
                           ([f'현장·유선 확인 권장 · {c["verificationNotice"]}'] if c["verificationNotice"] else [])} for c in cards]
-    summary = [f'{card["name"]} · {card["verificationNotice"]}' for card in cards if card["verificationNotice"]]
-    invite = "\n".join([f"[오픈나들이] {region} 방문 후보"] + [
-        f'{point["no"]}. {point["day"] or ""}{("일차 " + point["time"] + " · ") if point["time"] else ""}'
-        f'{point["name"]} — {point["address"]}\n   ' + " / ".join(point["barrier"])
-        for point in points
-    ]) if cards else ""
+    summary = [
+        f'{card["name"]} · ' + " / ".join(f'{v["label"]}: {v["value"]}' for v in card["confirmedAttributes"])
+        for card in cards if card.get("confirmedAttributes")
+    ]
+    pending = {}
+    for card in cards:
+        if card["verificationNotice"]:
+            notice = ("방문 전 출입구·영업 확인 권장" if card["kind"] in {"식당", "카페"}
+                      else card["verificationNotice"])
+            pending.setdefault(notice, []).append(card["name"])
+    visit_notes = [f'{", ".join(names)} · {notice}' for notice, names in pending.items()]
+    invite_lines = [f"💌 오픈나들이 · {region} 가족 일정"]
+    last_day = None
+    for card in cards:
+        if card["day"] is not None and card["day"] != last_day:
+            last_day = card["day"]
+            invite_lines.extend(["", f"{last_day}일차"])
+        invite_lines.append(f'{card["time"] or "•"} {card["name"]} · {card["address"]}'.rstrip(" ·"))
+        if details := card.get("confirmedAttributes"):
+            invite_lines.append("✅ 확인된 무장애 항목 · " + " / ".join(v["label"] for v in details))
+        if card["kind"] in {"식당", "카페"}:
+            invite_lines.append("📞 방문 전 출입구·영업 확인 권장")
+        elif card["verificationNotice"]:
+            invite_lines.append(f'📞 {card["verificationNotice"]}')
+    invite = "\n".join(invite_lines) if cards else ""
     intro = (f"{region} 공공데이터 방문 후보 {len(cards)}곳이에요. 시간은 일정 제안이며 실제 운영시간과 이동 시간은 확인해 주세요."
              if cards else f"{region}에서 조건에 맞는 결과가 없어요.")
     if any(result["status"] == "unavailable" for result in tool_results):
         intro += " 일부 공공데이터는 조회하지 못했어요."
     answer = {"type": "course", "intro": intro, "labels": intent.labels, "cards": cards,
-              "summary": summary, "route": {"points": points}, "invite": invite, "followups": followups}
+              "summary": summary, "visitNotes": visit_notes, "route": {"points": points}, "invite": invite, "followups": followups}
     return {"answer": answer, "events": events + [{"type": "answer", "answer": answer}],
             "sourceType": "live_api" if successful else None}

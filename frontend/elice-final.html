@@ -534,26 +534,7 @@ body {
 
 /* 초대장 미리보기 */
 .invite-preview { display: flex; }
-.invite-card {
-  flex: 1;
-  border: 1.5px solid var(--line);
-  border-radius: 16px;
-  overflow: hidden;
-  box-shadow: var(--shadow);
-}
-.invite-card-head {
-  background: linear-gradient(135deg, var(--brand) 0%, #14a08f 100%);
-  color: #fff;
-  font-weight: 800;
-  font-size: 16.5px;
-  padding: 11px 16px;
-}
-.invite-card-body {
-  white-space: pre-wrap;
-  padding: 14px 16px;
-  font-size: 15.5px;
-  line-height: 1.65;
-}
+#inviteLinks { display: grid; gap: .4rem; margin-block: .7rem; }
 
 .invite-preview + textarea,
 .modal textarea {
@@ -941,11 +922,10 @@ body {
         <h2 id="inviteTitle">💌 나들이 초대장 (가족 단톡방 공유용)</h2>
         <button class="modal-close" type="button" data-close="inviteModal" aria-label="닫기">✕</button>
       </div>
-      <div id="invitePreview" class="invite-preview"></div>
       <textarea id="inviteText" rows="12" spellcheck="false" aria-label="초대장 텍스트 편집"></textarea>
-      <p class="modal-desc">문구를 자유롭게 고친 뒤 복사하면 카카오톡·문자에 바로 붙여넣을 수 있어요.</p>
+      <div id="inviteLinks" aria-label="장소별 빠른 링크"></div>
       <div class="modal-actions">
-        <button class="btn btn-primary btn-lg" id="copyInviteBtn" type="button">📋 초대장 텍스트 복사</button>
+        <button class="btn btn-primary btn-lg" id="copyInviteBtn" type="button">📋 초대장 전체 복사</button>
       </div>
     </div>
   </div>
