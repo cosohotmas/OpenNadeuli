@@ -1,0 +1,30 @@
+.course-meta-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .45rem;
+  margin-block: .6rem;
+}
+
+.course-meta-chip {
+  max-width: 100%;
+  padding: .35em .75em;
+  border-radius: 999px;
+  font-size: .92em;
+  font-weight: 650;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.course-meta-source { background: #def1ed; color: #124f49; }
+.course-meta-neutral { background: #e9edf1; color: #37495c; }
+.course-meta-access { background: #e2f3e9; color: #13543e; }
+.course-meta-facility { background: #e5ecfb; color: #244773; }
+.course-meta-notice { background: #fff0d6; color: #713e00; }
+
+.course-meta-details { margin-block: .4rem .7rem; font-size: .95em; }
+.course-meta-details summary { cursor: pointer; width: fit-content; padding-block: .3rem; font-weight: 650; }
+.course-meta-details dl { margin: .4rem 0; }
+.course-meta-details dl div { margin-bottom: .4rem; }
+.course-meta-details dt { font-weight: 650; }
+.course-meta-details dd { margin: 0; overflow-wrap: anywhere; white-space: pre-line; }
+.card-links { display: flex; flex-wrap: wrap; align-items: center; gap: .65rem; }

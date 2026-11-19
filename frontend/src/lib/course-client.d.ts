@@ -6,3 +6,7 @@ export function sourceLines(source: Partial<PublicSource>): string[];
 export class CourseApiError extends Error {
   allowFallback: boolean;
 }
+export function cardMetadata(card: import('../types').CourseCard): {
+  chips: { tone: string; text: string }[];
+  fields: [string, string][];
+};

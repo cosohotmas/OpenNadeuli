@@ -1,9 +1,10 @@
+import './card-metadata.css';
 import React, { useState, useEffect, useRef } from 'react';
 import { kakaoLinks } from './lib/kakao-route.js';
 import type { CourseCard, ChatMessage, CourseSchedule, CourseStep } from './types';
 import { SampleCourse } from './lib/sample-course';
 import { postCourse } from './lib/api';
-import { sourceLabel, sourceLines } from './lib/course-client.js';
+import { cardMetadata, sourceLines } from './lib/course-client.js';
 import CourseMap, { type CourseMapHandle } from './components/CourseMap';
 import TimeRange, { formatHour } from './components/TimeRange';
 
@@ -22,6 +23,20 @@ const defaultSchedule: CourseSchedule = {
   cafe: true,
   hotel: true,
 };
+
+function CardMetadata({ card }: { card: CourseCard }) {
+  const { chips, fields } = cardMetadata(card);
+  return <>
+    {!!chips.length && <div className="course-meta-chips">
+      {chips.map(({ tone, text }) => <span key={text} className={`course-meta-chip course-meta-${tone}`}>{text}</span>)}
+    </div>}
+    {(!!fields.length || card.sourceUrl) && <details className="course-meta-details">
+      <summary>출처·조회정보 보기</summary>
+      <dl>{fields.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+      {card.sourceUrl && <a href={card.sourceUrl} target="_blank" rel="noopener noreferrer">공식 원문 ↗</a>}
+    </details>}
+  </>;
+}
 
 function ExternalMapLinks({ place }: { place: Pick<CourseCard, 'name' | 'address' | 'lat' | 'lng'> }) {
   const links = kakaoLinks(place);
@@ -229,21 +244,7 @@ const App = () => {
                       </div>
                       {card.kind && <div className="card-kind">{card.kind}</div>}
                       <div className="card-address">{card.address}</div>
-                      {sourceLabel(card.sourceType) && (
-                        <div className="source-details">
-                          <span className="badge">{sourceLabel(card.sourceType)}</span>
-                          <p>{sourceLines(card).slice(1).join(' · ')}</p>
-                          {card.accessibilityFetchedAt && <p>무장애 상세 조회 {card.accessibilityFetchedAt}</p>}
-                          {card.sourceUrl && <a href={card.sourceUrl} target="_blank" rel="noopener noreferrer">공식 원문</a>}
-                        </div>
-                      )}
-                      {!!card.verifiedAttributes?.length && (
-                        <section className="card-details">
-                          <strong>공공데이터에 기재</strong>
-                          <ul>{card.verifiedAttributes.map(({ field, label, value }) => <li key={field}>{label} · {value}</li>)}</ul>
-                        </section>
-                      )}
-                      {card.verificationNotice && <p className="step-note"><strong>현장·유선 확인 권장</strong> · {card.verificationNotice}</p>}
+                      <CardMetadata card={card} />
                       {card.badges.length > 0 && (
                         <div className="card-badges" aria-label="무장애 편의시설">
                           {card.badges.map((b) => (
@@ -252,14 +253,6 @@ const App = () => {
                             </span>
                           ))}
                         </div>
-                      )}
-                      {!card.badges.length && !card.verificationNotice && <p className="card-address">등록된 무장애 편의시설 정보가 없어요.</p>}
-                      {card.details && !!Object.keys(card.details).length && (
-                        <dl className="card-details">
-                          {Object.entries(card.details).map(([label, value]) => (
-                            <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
-                          ))}
-                        </dl>
                       )}
                       {card.tip && <div className="card-tip">💡 {card.tip}</div>}
                       <div className="course-map-links">
