@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "build:vercel": "vite build --mode elice"
+    "build:vercel": "vite build"
   },
   "dependencies": {
     "react": "^18.2.0",

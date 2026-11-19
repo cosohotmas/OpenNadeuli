@@ -4,12 +4,38 @@ export interface CourseCard {
   day?: number;
   time?: string;
   phase: string;
+  kind?: string;
+  mapQuery?: string;
   name: string;
   address: string;
   emoji: string;
   badges: string[];
   details?: Record<string, string>;
   tip: string;
+}
+
+export interface RoutePoint {
+  no: number;
+  day: number;
+  time: string;
+  phase: string;
+  name: string;
+  address: string;
+  emoji: string;
+  barrier: string[];
+  query: string;
+  queryAlt: string;
+  lat?: number | null;
+  lng?: number | null;
+}
+
+export interface CourseStep {
+  title: string;
+  detail?: string;
+  done?: string;
+  args?: unknown;
+  notes?: string[];
+  labels?: string[];
 }
 
 /** 채팅 메시지 타입 */
@@ -21,9 +47,9 @@ export interface ChatMessage {
   cards?: CourseCard[];
   summary?: string[];
   labels?: string[];
-  lookups?: { name: string; count: number; source: string }[];
+  steps?: CourseStep[];
   invite?: string;
-  route?: CourseAnswer['route'];
+  route?: { points: RoutePoint[] };
   followups?: string[];
   meta?: {
     source: string;

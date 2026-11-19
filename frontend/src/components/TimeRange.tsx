@@ -1,23 +1,23 @@
+import type { CourseSchedule } from '../types';
+import { buildSchedule } from '../lib/outing-engine.js';
+
 type Hours = { s: number; e: number };
 
 interface TimeRangeProps {
   day: number;
   hours: Hours;
-  meal: boolean;
-  hotel: boolean;
+  schedule: CourseSchedule;
   onChange: (hours: Hours) => void;
 }
 
 export const formatHour = (hour: number) => `${String(hour).padStart(2, '0')}:00`;
 
-export default function TimeRange({ day, hours, meal, hotel, onChange }: TimeRangeProps) {
-  const overlaps = (start: number, end: number) => hours.s < end && hours.e > start;
-  const activities = [
-    overlaps(9, 11) && '오전 산책',
-    meal && overlaps(11, 14) && '점심 식사',
-    overlaps(14, 19) && '오후 관광',
-    hotel && overlaps(17, 18) && '숙소 추천',
-  ].filter(Boolean);
+const activityLabels = { act: '관광·산책', lunch: '점심 식사', cafe: '카페 휴식', dinner: '저녁 식사', hotel: '숙소' };
+
+export default function TimeRange({ day, hours, schedule, onChange }: TimeRangeProps) {
+  const activities = [...new Set(buildSchedule(schedule)
+    .filter((event) => event.day === day)
+    .map((event) => activityLabels[event.kind]))];
 
   return (
     <fieldset className="time-range">

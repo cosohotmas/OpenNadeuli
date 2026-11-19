@@ -41,7 +41,7 @@
     },
     {
       "source": "/((?!api/).*)",
-      "destination": "/elice-final.html"
+      "destination": "/index.html"
     }
   ]
 }

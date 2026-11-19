@@ -18,10 +18,10 @@ export default defineConfig(({ mode }) => ({
   },
   build: {
     outDir: 'dist',
-    sourcemap: mode !== 'elice',
-    rollupOptions: mode === 'elice'
-      ? { input: path.resolve(__dirname, 'elice-final.html') }
-      : undefined,
+    sourcemap: mode !== 'production',
+    rollupOptions: {
+      input: [path.resolve(__dirname, 'index.html'), path.resolve(__dirname, 'elice-final.html')],
+    },
   },
   preview: {
     proxy: apiProxy,

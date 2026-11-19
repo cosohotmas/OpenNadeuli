@@ -34,7 +34,7 @@ AI 코딩 에이전트(Claude Code, Codex, Cursor 등)가 이 저장소에서 �
 - 프런트: React 18 + TypeScript + Vite. 로컬 개발·프리뷰는 Vite가 `/api` 요청을 FastAPI로 전달
 - 백엔드: FastAPI + uvicorn, 포트 8899, `/api/health`, `/api/course`, `/api/settings` 엔드포인트
 - 실행: 백엔드 `python3 -m uvicorn app:app --host 127.0.0.1 --port 8899`, 프런트 `cd frontend && npm run dev` (포트 5176)
-- 배포: `vercel.json` (FastAPI 함수 `/api/:path*` → `api/index.py`, 엘리스 최종본 `frontend/dist/elice-final.html`)
+- 배포: `vercel.json` (FastAPI 함수 `/api/:path*` → `api/index.py`, React `frontend/dist/index.html` 및 엘리스 백업 `frontend/dist/elice-final.html`)
 
 ## 기술 스택
 
@@ -47,7 +47,7 @@ AI 코딩 에이전트(Claude Code, Codex, Cursor 등)가 이 저장소에서 �
 | 환경변수 | `PORT`, `CORS_ORIGINS`, `KorWithS_End_Point`, `KorWithS_Key`, `SdsC_End_Point`, `SdsC_Key` (`.env.example` 5줄 추가됨) | `app.py`, `backend/src/api/routes.py` |
 | 설정 저장 | 서버 메모리(`os.environ`)만, 파일 미저장, 재시작 시 소멸 | `backend/src/services/tools.py` (`save_settings`) |
 | 도구 목록 | `searchOpenTouristSpots`, `searchAccessibleTrails`, `searchStayHotels`, `searchStepFreeRestaurants` | `backend/src/services/tools.py` (`TOOL_SPECS`) |
-| 지도 | 루트 HTML: 네이버 지도 검색(mapUrl) + 카카오 동선 요약, React 프런트 미도입 | 루트 `index.html`, `frontend/src/App.tsx` |
+| 지도 | 장소별 네이버 지도와 카카오 전체 동선 지도 | `frontend/src/App.tsx`, `frontend/src/components/CourseMap.tsx` |
 | API 경로 (React 프런트) | 같은 origin의 `/api` | `frontend/src/lib/api.ts` |
 
 ## 보안 원칙 (코드 읽기 기준)
@@ -131,7 +131,7 @@ CONVERSATION_LOG.md     작업 기록
 ## 배포
 
 - **Vercel 배포**: `vercel.json` 설정 포함. GitHub 저장소 연결 후 Vercel에서 자동 배포.
-- 배포 구조는 FastAPI 함수(`/api/:path*` → `api/index.py`)와 엘리스 최종본(`frontend/dist/elice-final.html`)입니다.
+- 배포 구조는 FastAPI 함수(`/api/:path*` → `api/index.py`)와 Vite 정적 출력입니다. `/`는 React·TypeScript·CSS, `/elice-final.html`은 실행 가능한 엘리스 정적 백업입니다. 두 화면은 `frontend/src/lib/outing-engine.js`를 공유합니다.
 - `.env`는 `.gitignore`로 제외. 실제 API 키는 Vercel 프로젝트 설정의 Environment Variables에 등록.
 - 배포 도메인을 `CORS_ORIGINS` 환경변수에 추가해야 프런트·백엔드 간 CORS가 정상 동작합니다.
 - 카카오맵은 빌드 환경의 `OPENNADEULI_MAPKAKAO`에서 도메인 제한이 적용된 JavaScript SDK 키를 사용합니다. 다른 공공 API 키는 서버 환경에 둡니다.

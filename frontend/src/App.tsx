@@ -1,29 +1,22 @@
 import React, { useState, useEffect, useRef } from 'react';
-import type { ChatMessage, CourseResponse, CourseSchedule } from './types';
-import { postCourse } from './lib/api';
+import type { ChatMessage, CourseSchedule } from './types';
+import { SampleCourse } from './lib/sample-course';
 import CourseMap from './components/CourseMap';
 import TimeRange, { formatHour } from './components/TimeRange';
 
 const quickQuestions = [
-          '부모님 모시고 가기 좋은 부산 바다 데크길 코스',
-          '비 오는 날 휠체어로 편한 실내 나들이',
-          '평지 위주 맛집+산책 반나절 코스',
-          '제주에서 휠체어로 가볼 만한 곳 알려줘',
+  '부모님 모시고 가기 좋은 부산 바다 데크길 코스',
+  '비 오는 날 휠체어로 편한 실내 나들이',
+  '평지 위주 맛집+산책 반나절 코스',
+  '제주에서 휠체어로 가볼 만한 곳 알려줘',
 ];
-
-const toolLabels: Record<string, string> = {
-  searchOpenTouristSpots: '열린관광지',
-  searchAccessibleTrails: '무장애 탐방로',
-  searchStepFreeRestaurants: '상권정보 · 턱 없는 식당',
-  searchStayHotels: '무장애 숙소',
-};
 
 const defaultSchedule: CourseSchedule = {
   tripType: 'day',
   d1: { s: 0, e: 24 },
   d2: { s: 0, e: 24 },
   meal: true,
-  cafe: false,
+  cafe: true,
   hotel: true,
 };
 
@@ -31,14 +24,17 @@ const mapUrl = (name: string, address: string) =>
   `https://map.naver.com/p/search/${encodeURIComponent(`${name} ${address}`.trim())}`;
 
 const App = () => {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [engine, setEngine] = useState(() => new SampleCourse());
+  const [messages, setMessages] = useState<ChatMessage[]>(() => [engine.welcome(0)]);
   const [schedule, setSchedule] = useState(defaultSchedule);
   const [activeDay, setActiveDay] = useState<'d1' | 'd2'>('d1');
-  const [scheduleChanged, setScheduleChanged] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [inviteText, setInviteText] = useState('');
+  const scheduleRef = useRef<HTMLDetailsElement>(null);
+  const requestId = useRef(0);
+  const busy = useRef(false);
   const inviteDialogRef = useRef<HTMLDialogElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -46,25 +42,9 @@ const App = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const addWelcomeMessage = () => {
-    setMessages([
-      {
-        id: 0,
-        type: 'agent',
-        intro:
-          '안녕하세요! 저는 오픈나들이 AI 에이전트예요. 휠체어·보행 약자를 위한 무장애 관광 코스를 추천해 드립니다.\n\n이렇게 말씀해 보세요.\n· "주말에 휠체어 타고 산책할 만한 부산 근교 나들이 장소 찾아줘"\n· "부모님 모시고 가기 좋은 바다 데크길 코스"\n· "비 오는 날 실내로 편하게 가고 싶어요"',
-        cards: [],
-      },
-    ]);
-  };
-
-  useEffect(() => {
-    addWelcomeMessage();
-  }, []);
-
   const sendMessage = async (text: string) => {
     const message = text.trim();
-    if (loading || !message) return;
+    if (busy.current || !message) return;
 
     const dates = schedule.tripType === 'overnight' ? [schedule.d1, schedule.d2] : [schedule.d1];
     if (dates.some(({ s, e }) => !Number.isInteger(s) || !Number.isInteger(e) || s < 0 || e > 24 || e <= s)) {
@@ -72,39 +52,28 @@ const App = () => {
       return;
     }
 
-    const userMsg: ChatMessage = { id: Date.now(), type: 'user', text: message };
+    busy.current = true;
+    if (scheduleRef.current) scheduleRef.current.open = false;
+    const userMsg: ChatMessage = { id: ++requestId.current, type: 'user', text: message };
+    const answerId = ++requestId.current;
     setMessages((prev) => [...prev, userMsg]);
     setInputValue('');
     setToast(null);
     setLoading(true);
 
     try {
-      const requestedSchedule = schedule.tripType === 'day' ? { ...schedule, d2: defaultSchedule.d2 } : schedule;
-      const response: CourseResponse = await postCourse(message, scheduleChanged ? requestedSchedule : undefined);
-      const agentMsg: ChatMessage = {
-        id: Date.now() + 1,
-        type: 'agent',
-        intro: response.answer?.intro || '응답을 생성 중이에요.',
-        cards: response.answer?.cards || [],
-        labels: response.answer?.labels,
-        summary: response.answer?.summary,
-        lookups: response.events.flatMap((event) =>
-          event.type === 'toolDone' && event.step && event.result
-            ? [{ name: toolLabels[event.step] ?? event.step, count: event.result.items.length, source: event.result.source }]
-            : [],
-        ),
-        invite: response.answer?.invite,
-        route: response.answer?.route,
-        followups: response.answer?.followups || [],
-      };
-      setMessages((prev) => [...prev, agentMsg]);
+      await engine.recommend(message, schedule, answerId, (answer) => {
+        setMessages((previous) => previous.some((row) => row.id === answerId)
+          ? previous.map((row) => row.id === answerId ? answer : row)
+          : [...previous, answer]);
+      });
     } catch (err) {
       console.error(err);
       setToast('요청 중 오류가 발생했어요. 잠시 후 다시 시도해 주세요.');
       setMessages((prev) => [
-        ...prev,
+        ...prev.filter((row) => row.id !== answerId),
         {
-          id: Date.now() + 1,
+          id: answerId,
           type: 'agent',
           intro: '죄송해요. 처리 중 문제가 생겼어요. 다시 한 번 말해주시겠어요?',
           cards: [],
@@ -112,6 +81,7 @@ const App = () => {
         },
       ]);
     } finally {
+      busy.current = false;
       setLoading(false);
     }
   };
@@ -124,7 +94,9 @@ const App = () => {
   const resetChat = () => {
     setInputValue('');
     setToast(null);
-    addWelcomeMessage();
+    const next = new SampleCourse();
+    setEngine(next);
+    setMessages([next.welcome(0)]);
   };
 
   const openInvite = (message: ChatMessage) => {
@@ -172,18 +144,21 @@ const App = () => {
             {msg.type === 'agent' && <div className="avatar" aria-hidden="true">🌿</div>}
             <div className="bubble">
               {msg.text && <p>{msg.text}</p>}
-              {!!msg.lookups?.length && (
-                <details className="lookup-details">
-                  <summary>요청 분석 · 데이터 조회 {msg.lookups.length}건</summary>
-                  <ol>
-                    {msg.lookups.map((lookup) => (
-                      <li key={lookup.name}>
-                        <strong>{lookup.name}</strong>
-                        <span>{lookup.count}건 조회 · {lookup.source === 'live' ? '실시간 API' : '내장 샘플 데이터'}</span>
-                      </li>
-                    ))}
-                  </ol>
-                </details>
+              {!!msg.steps?.length && (
+                <ol className="agent-timeline" aria-label="코스 조합 과정">
+                  {msg.steps.map((step, index) => (
+                    <li key={index}>
+                      <span className="step-mark" aria-label={step.done ? '완료' : '진행 중'}>{step.done ? '✓' : '…'}</span>
+                      <div>
+                        <strong>{step.title}</strong>
+                        {step.detail && <p>{step.detail}</p>}
+                        {step.args !== undefined && <details><summary>조회 조건</summary><pre>{JSON.stringify(step.args, null, 2)}</pre></details>}
+                        {step.done && <p>{step.done}</p>}
+                        {step.notes?.map((note) => <p className="step-note" key={note}>{note}</p>)}
+                      </div>
+                    </li>
+                  ))}
+                </ol>
               )}
               {msg.intro && <p>{msg.intro}</p>}
               {!!msg.labels?.length && (
@@ -198,10 +173,11 @@ const App = () => {
                       <div className="card-header">
                         <span className="card-no">{card.no}</span>
                         <span className="card-phase">
-                          {card.day && `${card.day}일차 ${card.time} · `}{card.phase}
+                          {card.phase}
                         </span>
                         <h3 className="card-name"><span aria-hidden="true">{card.emoji}</span> {card.name}</h3>
                       </div>
+                      {card.kind && <div className="card-kind">{card.kind}</div>}
                       <div className="card-address">{card.address}</div>
                       {card.badges.length > 0 && (
                         <div className="card-badges" aria-label="무장애 편의시설">
@@ -223,7 +199,7 @@ const App = () => {
                       {card.tip && <div className="card-tip">💡 {card.tip}</div>}
                       <a
                         className="map-link"
-                        href={mapUrl(card.name, card.address)}
+                        href={mapUrl(card.mapQuery || card.name, card.mapQuery ? '' : card.address)}
                         target="_blank"
                         rel="noopener noreferrer"
                         aria-label={`${card.name} 지도에서 보기 (새 탭)`}
@@ -247,9 +223,9 @@ const App = () => {
                         <span className="card-no" aria-hidden="true">{point.no}</span>
                         <div>
                           <strong>{point.name}</strong>
-                          <p>{point.day && `${point.day}일차 ${point.time} · `}{point.phase} · {point.address}</p>
-                          <div className="card-badges">{point.badges.map((badge) => <span key={badge} className="badge">{badge}</span>)}</div>
-                          <a className="map-link" href={`https://map.kakao.com/link/search/${encodeURIComponent(`${point.name} ${point.address}`.trim())}`}
+                          <p>{point.phase} · {point.address || point.query}</p>
+                          <div className="card-badges">{point.barrier.map((badge) => <span key={badge} className="badge">{badge}</span>)}</div>
+                          <a className="map-link" href={`https://map.kakao.com/link/search/${encodeURIComponent(point.queryAlt || point.query || point.name)}`}
                             target="_blank" rel="noopener noreferrer" aria-label={`${point.name} 카카오맵에서 보기 (새 탭)`}>
                             카카오맵에서 보기
                           </a>
@@ -298,15 +274,16 @@ const App = () => {
               onClick={() => void sendMessage(question)}>{question}</button>
           ))}
         </div>
-        <details className="schedule">
+        <details className="schedule" ref={scheduleRef}>
           <summary>
             일정 및 시간대 상세 설정
-            {scheduleChanged && <strong>
+            <strong>
               {formatHour(schedule.d1.s)}–{formatHour(schedule.d1.e)}
               {schedule.tripType === 'overnight' && ` / ${formatHour(schedule.d2.s)}–${formatHour(schedule.d2.e)}`}
               {schedule.meal && ' · 식사'}
+              {schedule.cafe && ' · 카페'}
               {schedule.tripType === 'overnight' && schedule.hotel && ' · 숙소'}
-            </strong>}
+            </strong>
           </summary>
           <fieldset disabled={loading} aria-label="나들이 일정">
             <div className="schedule-actions" role="group" aria-label="여행 유형">
@@ -315,13 +292,11 @@ const App = () => {
                   onClick={() => {
                     setSchedule({ ...schedule, tripType: type });
                     setActiveDay('d1');
-                    setScheduleChanged(true);
                   }}>{type === 'day' ? '당일 코스' : '1박 2일 코스'}</button>
               ))}
               <button className="btn schedule-reset" type="button" onClick={() => {
                 setSchedule(defaultSchedule);
                 setActiveDay('d1');
-                setScheduleChanged(false);
               }}>초기화</button>
             </div>
             {schedule.tripType === 'overnight' && (
@@ -333,7 +308,6 @@ const App = () => {
                 <label className="hotel-option">
                   <input type="checkbox" checked={schedule.hotel} onChange={(event) => {
                     setSchedule({ ...schedule, hotel: event.target.checked });
-                    setScheduleChanged(true);
                   }} />
                   무장애 숙소 추천
                 </label>
@@ -342,19 +316,21 @@ const App = () => {
             <TimeRange
               day={activeDay === 'd1' ? 1 : 2}
               hours={schedule[activeDay]}
-              meal={schedule.meal}
-              hotel={activeDay === 'd1' && schedule.tripType === 'overnight' && schedule.hotel}
+              schedule={schedule}
               onChange={(hours) => {
                 setSchedule({ ...schedule, [activeDay]: hours });
-                setScheduleChanged(true);
               }}
             />
             <label className="chip meal-option">
               <input type="checkbox" checked={schedule.meal} onChange={(event) => {
                 setSchedule({ ...schedule, meal: event.target.checked });
-                setScheduleChanged(true);
               }} />
               식사 포함
+            </label>
+            <label className="chip meal-option">
+              <input type="checkbox" checked={schedule.cafe}
+                onChange={(event) => setSchedule({ ...schedule, cafe: event.target.checked })} />
+              카페 휴식 포함
             </label>
           </fieldset>
         </details>
