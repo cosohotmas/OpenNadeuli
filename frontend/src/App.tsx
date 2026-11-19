@@ -1,4 +1,5 @@
-import { regionOptions, resolveSearchRegion, revealDelay, scrollToResponse } from './lib/search-flow.js';
+import { mountRegionPicker } from './lib/region-picker.js';
+import { resolveSearchRegion, revealDelay, scrollToResponse, searchProgress } from './lib/search-flow.js';
 import './card-metadata.css';
 import React, { useState, useEffect, useRef } from 'react';
 import { kakaoLinks } from './lib/kakao-route.js';
@@ -85,7 +86,13 @@ const App = () => {
   const [activeDay, setActiveDay] = useState<'d1' | 'd2'>('d1');
   const [inputValue, setInputValue] = useState('');
   const [loading, setLoading] = useState(false);
-  const [region, setRegion] = useState('');
+  const pickerHost = useRef<HTMLDivElement>(null);
+  const picker = useRef<ReturnType<typeof mountRegionPicker> | null>(null);
+  const [locationRetry, setLocationRetry] = useState<{ text: string; region: string } | null>(null);
+  useEffect(() => {
+    if (pickerHost.current) picker.current = mountRegionPicker(pickerHost.current, () => setLocationRetry(null));
+  }, []);
+  useEffect(() => { picker.current?.setDisabled(loading); }, [loading]);
   const [pending, setPending] = useState<{ id: number; stage: string } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [invitePlaces, setInvitePlaces] = useState<CourseCard[]>([]);
@@ -126,12 +133,15 @@ const App = () => {
     setInputValue('');
     setToast(null);
     setLoading(true);
+    setLocationRetry(null);
     setPending({ id: answerId, stage: "요청 분석 중" });
 
     try {
       const report = (stage: string) => setPending({ id: answerId, stage });
-      const location = await resolveSearchRegion(message, region, report);
-      report('관광지·편의시설 조회 및 동선 구성 중');
+      const location = await resolveSearchRegion(message, picker.current?.value || '', report, (region) => {
+        if (requestId.current === answerId && !picker.current?.value) setLocationRetry({ text: message, region });
+      });
+      report(searchProgress(location));
       const response = await postCourse(message, schedule, location);
       const answer = response.answer;
       if (!answer) throw new Error('Missing course answer');
@@ -182,6 +192,8 @@ const App = () => {
   };
 
   const resetChat = () => {
+    requestId.current++;
+    setLocationRetry(null);
     setInputValue('');
     setToast(null);
     const next = new SampleCourse();
@@ -359,12 +371,11 @@ const App = () => {
       </main>
 
       <div className="composer">
-        <label className="search-region">검색 지역
-          <select value={region} onChange={(event) => setRegion(event.target.value)} disabled={loading}>
-            <option value="">자동 · 현재 위치 사용</option>
-            {regionOptions.map((option) => <option key={option}>{option}</option>)}
-          </select>
-        </label>
+        <div className="search-region">
+          <span>검색 지역</span><div ref={pickerHost} />
+          {locationRetry && <button type="button" className="btn location-retry" disabled={loading}
+            onClick={() => void sendMessage(locationRetry.text)}>현재 위치 확인 · {locationRetry.region}로 다시 검색</button>}
+        </div>
         <div className="quick-questions" aria-label="빠른 질문">
           {quickQuestions.map((question) => (
             <button key={question} className="chip" type="button" disabled={loading}
