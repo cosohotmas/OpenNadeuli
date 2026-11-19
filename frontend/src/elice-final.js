@@ -116,6 +116,7 @@ async function submit(text) {
         searchStayHotels: "한국관광공사 숙박",
         searchAccessibleTrails: "무장애 탐방로",
         searchBusanStationFacilities: "부산 도시철도 역사 편의시설",
+        searchKdpcfFacilities: "한국사회보장정보원 장애인편의시설",
       };
       const status = { success: "조회 완료", empty: "조건에 맞는 결과 없음", unavailable: "조회 실패", skipped: "조회 보류" };
       for (const event of response.events) {
@@ -272,11 +273,12 @@ function renderAnswer(content, chips, answer) {
     content.appendChild(rail);
   }
 
-  if (answer.summary?.length || answer.transitStations?.length) {
+  if (answer.summary?.length || answer.transitStations?.length || answer.nearbyFacilities?.length) {
     const sum = el("section", "summary");
     sum.innerHTML = `<strong>✅ 안심 체크포인트</strong>
       ${answer.summary?.length ? `<ul>${answer.summary.map((line) => `<li>${esc(line)}</li>`).join("")}</ul>` : ""}
-      ${answer.transitStations?.length ? `<h3>인근 역사 이동 참고</h3>${answer.transitStations.map(stationHtml).join("")}` : ""}`;
+      ${answer.transitStations?.length ? `<h3>인근 역사 이동 참고</h3>${answer.transitStations.map(stationHtml).join("")}` : ""}
+      ${answer.nearbyFacilities?.length ? `<h3>동선 인근 편의시설 참고</h3>${answer.nearbyFacilities.map(facilityHtml).join("")}` : ""}`;
     content.appendChild(sum);
   }
   if (answer.visitNotes?.length) {
@@ -294,6 +296,20 @@ function renderAnswer(content, chips, answer) {
   }
 
   renderChips(chips, answer.followups || []);
+}
+
+function facilityHtml(facility) {
+  return `<div class="course-station">
+    <strong>${esc(facility.name)}</strong>
+    ${facility.distanceM != null ? ` · 방문 지점에서 직선 약 ${esc(facility.distanceM)}m` : ""}
+    ${facility.address ? `<div>${esc(facility.address)}</div>` : ""}
+    <div class="course-meta-chips" aria-label="공공데이터에 기재된 기구표 항목">
+      ${facility.facilities.map((item) => `<span class="course-meta-chip course-meta-facility">${esc(item)}</span>`).join("")}
+    </div>
+    <a href="${esc(facility.sourceUrl)}" target="_blank" rel="noopener noreferrer">공공 API 조회 · ${esc(facility.provider)}</a>
+    <div>API 조회 <time datetime="${esc(facility.fetchedAt)}">${esc(facility.fetchedAt)}</time></div>
+    <div>공공데이터 기구표에 기재된 항목입니다. 이용 가능 여부는 방문 전 확인해 주세요.</div>
+  </div>`;
 }
 
 function stationHtml(station) {
@@ -337,6 +353,7 @@ function renderCard(c, focusVisit) {
         ${c.sourceUrl ? `<a href="${esc(c.sourceUrl)}" target="_blank" rel="noopener noreferrer">공식 원문 ↗</a>` : ""}
       </details>` : ""}
       ${c.tip ? `<div class="card-tip">💡 ${esc(c.tip)}</div>` : ""}
+      ${c.kdpcfFacility ? `<section aria-label="숙소 편의시설 보조 원본"><h4>숙소 편의시설 추가 출처</h4>${facilityHtml(c.kdpcfFacility)}</section>` : ""}
       ${c.nearbyStation ? `<section aria-label="인근 역사 이동 참고"><h4>인근 역사 이동 참고</h4>${stationHtml(c.nearbyStation)}</section>` : ""}
       <div class="card-links">${focusVisit ? '<button type="button" class="btn">내장 지도 위치</button>' : ''} ${mapLinksHtml(c)}</div>
     </div>`;

@@ -14,6 +14,7 @@ import truststore
 
 from ..data.sample_data import REGION_CENTER
 from .busan_station_access import SOURCE as BUSAN_SOURCE, attach_nearby_stations, station_records
+from .kdpcf_access import SOURCE as KDPCF_SOURCE, enrich_facilities
 from .nlu import default_region, parse_intent
 
 LOGGER = logging.getLogger(__name__)
@@ -395,6 +396,17 @@ async def public_course(text, schedule):
         log_tool("searchBusanStationFacilities", {"region": region}, "success" if transit_stations else
                  "empty" if fetched else "unavailable", BUSAN_SOURCE, fetched, count=len(transit_stations), note=note)
 
+    nearby_facilities = []
+    if cards:
+        kdpcf_key = api_key("KDPCF_Key")
+        endpoint = os.getenv("KDPCF_End_Point", "").strip()
+        async with httpx.AsyncClient(verify=tls_context, follow_redirects=False) as client:
+            nearby_facilities, fetched, note = await enrich_facilities(client, endpoint, kdpcf_key, cards)
+        count = len(nearby_facilities) + sum("kdpcfFacility" in card for card in cards)
+        log_tool("searchKdpcfFacilities", {"region": region}, "success" if count else
+                 "empty" if fetched else "unavailable" if endpoint and kdpcf_key else "skipped",
+                 KDPCF_SOURCE, fetched, count=count, note=note)
+
     points = [{**c, "query": c["address"] or c["name"], "queryAlt": c["name"],
                "barrier": [f'{v["label"]} · {v["value"]}' for v in c["verifiedAttributes"]] +
                           ([f'현장·유선 확인 권장 · {c["verificationNotice"]}'] if c["verificationNotice"] else [])} for c in cards]
@@ -433,6 +445,6 @@ async def public_course(text, schedule):
     if any(result["status"] == "unavailable" for result in tool_results):
         intro += " 일부 공공데이터는 조회하지 못했어요."
     answer = {"type": "course", "intro": intro, "labels": intent.labels, "cards": cards,
-              "summary": summary, "visitNotes": visit_notes, "transitStations": transit_stations, "route": {"points": points}, "invite": invite, "followups": followups}
+              "summary": summary, "visitNotes": visit_notes, "transitStations": transit_stations, "nearbyFacilities": nearby_facilities, "route": {"points": points}, "invite": invite, "followups": followups}
     return {"answer": answer, "events": events + [{"type": "answer", "answer": answer}],
             "sourceType": "live_api" if successful else None}
