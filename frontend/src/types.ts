@@ -1,11 +1,14 @@
 /** 에이전트 응답에서 사용하는 카드 UI 타입 */
 export interface CourseCard {
   no: number;
+  day?: number;
+  time?: string;
   phase: string;
   name: string;
   address: string;
   emoji: string;
   badges: string[];
+  details?: Record<string, string>;
   tip: string;
 }
 
@@ -17,6 +20,10 @@ export interface ChatMessage {
   intro?: string;
   cards?: CourseCard[];
   summary?: string[];
+  labels?: string[];
+  lookups?: { name: string; count: number; source: string }[];
+  invite?: string;
+  route?: CourseAnswer['route'];
   followups?: string[];
   meta?: {
     source: string;
@@ -28,7 +35,10 @@ export interface ChatMessage {
 /** 에이전트 API 요청의 코스 요청 타입 */
 export interface CourseRequest {
   text: string;
-  schedule?: {
+  schedule?: CourseSchedule;
+}
+
+export interface CourseSchedule {
     tripType: 'day' | 'overnight';
     d1: {
       s: number;
@@ -41,7 +51,6 @@ export interface CourseRequest {
     meal: boolean;
     cafe: boolean;
     hotel: boolean;
-  };
 }
 
 /** 백엔드 응답의 코스 부분 */
