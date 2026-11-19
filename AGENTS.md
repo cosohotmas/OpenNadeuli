@@ -62,7 +62,7 @@ AI 코딩 에이전트(Claude Code, Codex, Cursor 등)가 이 저장소에서 �
 ```
 index.html              단일 실행 파일 (CSS·JS 인라인) — vercel.json 배포 대상 아님
 index.template.html     개발용 템플릿 (js/ 모듈 참조)
-standalone.html         index.html과 동일한 사본 (file:// 직접 열기용)
+standalone.html         build-standalone.mjs 생성물 (index.html과 동일 내용, file:// 직접 열기용)
 styles.css              가독성 중심 UI
 serve.mjs               정적 서버 + /proxy/openapi·/proxy/kakaomaps 프록시 (포트 8899)
 js/
@@ -143,7 +143,7 @@ CONVERSATION_LOG.md     작업 기록
 - 프런트 정적 서빙: 부분 검증 (python `http.server`는 정상, `vite preview`는 이 환경에서 무응답, 원인 미상)
 - 브라우저 렌더링 연동: 미실행(원인: vite preview 무응답)
 - 프런트→백엔드 실제 호출: 미실행(원인: vite preview 무응답)
-- CORS preflight: 부분 검증(검증 origin `http://127.0.0.1:5188`에서는 `access-control-allow-origin` 반환 확인. 허용 목록 외 origin에도 헤더가 반환되는 현상 확인, 원인 미확인(보안 문제))
+- CORS preflight: 부분 검증(검증 origin `http://127.0.0.1:5188`에서는 `access-control-allow-origin` 반환 확인. 허용 목록 외 origin은 148b962 기준 현재 차단 확인(과거 관찰, 현재 미재현))
 - 검증하지 않은 항목을 "완료"라고 말하지 않습니다.
 - 브라우저 검증이 막히면 원인과 함께 "미검증"으로 표기하고, 우회 검증(대체 서버 등)을 썼다면 우회 사실을 기록합니다.
 
