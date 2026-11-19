@@ -329,7 +329,7 @@ function renderAnswer(content, chips, answer) {
     content.appendChild(row);
   }
 
-  renderChips(chips, answer.followups || []);
+  if (chips) renderChips(chips, answer.followups || []);
 }
 
 function facilityHtml(facility) {
@@ -646,12 +646,11 @@ function showWelcome() {
     <div class="avatar" aria-hidden="true">🌿</div>
     <div class="bubble">
       <div class="content"></div>
-      <div class="chips"></div>
     </div>`;
   refs.chat.appendChild(m);
   renderAnswer(
     m.querySelector(".content"),
-    m.querySelector(".chips"),
+    null,
     uiAgent.welcome()
   );
   autoscroll();

@@ -344,7 +344,7 @@ const App = () => {
                   💌 가족 단톡방용 초대장 만들기
                 </button>
               )}
-              {msg.followups && msg.followups.length > 0 && (
+              {msg.id !== 0 && msg.followups && msg.followups.length > 0 && (
                 <div className="followups">
                   {msg.followups.map((f) => (
                     <button
