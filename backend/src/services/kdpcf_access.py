@@ -60,7 +60,8 @@ def parse_xml(raw):
     if code not in {"0", "00", "0000"}:
         raise FacilityUnavailable("공급자 조회 거부 또는 결과코드 누락")
     return [{child.tag: (child.text or "").strip() for child in node}
-            for node in root.iter() if node.find("wfcltId") is not None and node.find("faclNm") is not None]
+            for node in root.iter() if node.find("faclNm") is not None
+            and (node.find("wfcltId") is not None or node.find("srvInstId") is not None)]
 
 
 def facility_record(row):
@@ -87,16 +88,21 @@ async def enrich_facilities(client, endpoint, key, cards):
     for card in cards:
         address = card["address"]
         match = ROAD.search(address)
-        province = address.split(maxsplit=1)[0] if address else ""
-        if match and province:
-            roads.setdefault((province, match[1]), {"siDoNm": province, "roadNm": match[1]})
+        area = address[:match.start()].split() if match else []
+        if area:
+            province = area[0]
+            district = next((part for part in reversed(area[1:]) if part.endswith(("시", "군", "구"))), None)
+            query = {"siDoNm": province, "roadNm": match[1]}
+            if district:
+                query["cggNm"] = district
+            roads.setdefault((province, district, match[1]), query)
     queries = [{"faclNm": card["name"]} for card in hotels] + list(roads.values())[:8]
     if not queries:
         return [], None, "조회할 숙소명·도로명 없음"
 
     async def read(operation, params):
         try:
-            response = await client.get(f"{BASE}/{operation}", params={**params, "serviceKey": key}, timeout=3.0)
+            response = await client.get(f"{BASE}/{operation}", params={**params, "serviceKey": key}, timeout=4.5)
             response.raise_for_status()
             return parse_xml(response.content)
         except httpx.HTTPError as exc:
@@ -138,7 +144,7 @@ async def enrich_facilities(client, endpoint, key, cards):
         if not isinstance(rows, list):
             continue
         record = candidates[identifier]
-        rows = [row for row in rows if row.get("wfcltId") == identifier
+        rows = [row for row in rows if (row.get("srvInstId") or row.get("wfcltId")) == identifier
                 and name_key(row.get("faclNm")) == name_key(record["name"])]
         fields = {}
         for row in rows:
