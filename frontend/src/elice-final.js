@@ -1,3 +1,4 @@
+import { CourseApiError, requestCourse, sourceLabel, sourceLines } from "./lib/course-client.js";
 import { enqueueGeocode, ensureKakao, geocodePoint } from "./lib/kakao-route.js";
 import { BADGE_DEFS, DEFAULT_SETTINGS, OutingAgent, TOOL_SPECS, buildSchedule } from "./lib/outing-engine.js";
 
@@ -79,18 +80,55 @@ async function submit(text) {
 
   addUserMessage(text);
   const { bubble, handlers } = newAgentBubble();
+  const schedule = {
+    tripType: schedState.tripType,
+    d1: { ...schedState.d1 },
+    d2: { ...schedState.d2 },
+    meal: schedState.meal,
+    cafe: schedState.cafe,
+    hotel: schedState.hotel,
+  };
   try {
-    /* 일정·시간대 설정값을 에이전트에 전달 → 유연한 스케줄링 (blocks → schedule) */
-    await uiAgent.handle(text, handlers, {
-      schedule: {
-        tripType: schedState.tripType,
-        d1: { ...schedState.d1 },
-        d2: { ...schedState.d2 },
-        meal: schedState.meal,
-        cafe: schedState.cafe,
-        hotel: schedState.hotel,
-      },
-    });
+    let response;
+    try {
+      response = await requestCourse(text, schedule);
+    } catch (error) {
+      if (!(error instanceof CourseApiError) || !error.allowFallback) throw error;
+      refs.badge.textContent = "시연용 내장 샘플";
+      handlers.onNote("서버에 연결하지 못해 시연용 내장 샘플을 표시해요. 실제 접근성 확인 결과는 아니에요.");
+      await uiAgent.handle(text, {
+        ...handlers,
+        onAnswer(answer) {
+          handlers.onAnswer({
+            ...answer,
+            intro: `시연용 내장 샘플 · ${answer.intro}`,
+            cards: answer.cards?.map((card) => ({ ...card, sourceType: "fallback_mock" })),
+          });
+        },
+      }, { schedule });
+    }
+    if (response) {
+      refs.badge.textContent = sourceLabel(response.sourceType) || "공공데이터 코스";
+      const names = {
+        searchNearbyRestaurants: "인근 식당·카페",
+        searchOpenTouristSpots: "한국관광공사 관광지",
+        searchStayHotels: "한국관광공사 숙박",
+        searchAccessibleTrails: "무장애 탐방로",
+      };
+      const status = { success: "조회 완료", empty: "조건에 맞는 결과 없음", unavailable: "조회 실패", skipped: "조회 보류" };
+      for (const event of response.events) {
+        if (event.type === "status") {
+          handlers.onStatusDone(handlers.onStatus({ icon: "📋", title: event.step }), event.detail);
+        } else if (event.type === "toolDone") {
+          const result = event.result;
+          const step = handlers.onStatus({ icon: "📋", title: names[event.step] || event.step });
+          const source = result.fetchedAt || result.sourceType === "fallback_mock" ? sourceLines(result).join(" · ") : "";
+          handlers.onStatusDone(step, [`${status[result.status]} · ${result.count}건`, source].filter(Boolean).join(" · "));
+          if (result.note) handlers.onNote(result.note);
+        }
+      }
+      handlers.onAnswer(response.answer);
+    }
   } catch (err) {
     handlers.onAnswer({
       type: "greeting",
@@ -251,24 +289,32 @@ function renderAnswer(content, chips, answer) {
 
 function renderCard(c, focusVisit) {
   const card = el("article", "card");
+  const phase = c.time ? `${c.day ? `${c.day}일차 ` : ""}${c.time} · ${c.phase}` : c.phase;
+  const details = Array.isArray(c.details) ? c.details : Object.entries(c.details || {});
+  const source = sourceLabel(c.sourceType) ? sourceLines(c).join(" · ") : "";
+  const attributes = c.verifiedAttributes || [];
   card.innerHTML = `
     <div class="card-rail">
       <div class="card-order"><span class="no">${c.no}</span></div>
-      <div class="phase">${esc(c.phase)}</div>
+      <div class="phase">${esc(phase)}</div>
     </div>
     <div class="card-main">
       <div class="card-head">
         <span class="card-emoji" aria-hidden="true">${c.emoji}</span>
         <div class="card-names">
           <h3 class="card-title">${esc(c.name)}</h3>
-          <span class="card-type">${c.kindIcon} ${esc(c.kind)}</span>
+          <span class="card-type">${esc(c.kindIcon || "")} ${esc(c.kind || "")}</span>
         </div>
       </div>
       <div class="card-addr">📍 ${esc(c.address)}</div>
-      <div class="badges">${c.badges.map((k) => badgeHtml(k, c.badgeNote?.[k])).join("")}</div>
-      ${c.details?.length ? `<div class="card-details">${c.details.map(([k, v]) => `<span><b>${esc(k)}</b> ${esc(v)}</span>`).join("")}</div>` : ""}
-      <div class="card-tip">💡 ${esc(c.tip)}</div>
-      <div class="card-links"><a href="${mapUrl(c.mapQuery)}" target="_blank" rel="noopener">🗺️ 지도에서 보기</a></div>
+      <div class="badges">${(c.badges || []).map((k) => badgeHtml(k, c.badgeNote?.[k]) || `<span class="badge">${esc(k)}</span>`).join("")}</div>
+      ${details.length ? `<div class="card-details">${details.map(([k, v]) => `<span><b>${esc(k)}</b> ${esc(v)}</span>`).join("")}</div>` : ""}
+      ${source ? `<p class="step-detail">${esc(source)}</p>` : ""}
+      ${c.accessibilityFetchedAt ? `<p class="step-detail">무장애 상세 조회 ${esc(c.accessibilityFetchedAt)}</p>` : ""}
+      ${attributes.length ? `<div class="card-details"><b>공공데이터에 기재</b>${attributes.map((a) => `<span>${esc(a.label)} · ${esc(a.value)}</span>`).join("")}</div>` : ""}
+      ${c.verificationNotice ? `<p class="step-note"><b>현장·유선 확인 권장</b> · ${esc(c.verificationNotice)}</p>` : ""}
+      ${c.tip ? `<div class="card-tip">💡 ${esc(c.tip)}</div>` : ""}
+      <div class="card-links"><a href="${mapUrl(c.mapQuery || [c.name, c.address].filter(Boolean).join(" "))}" target="_blank" rel="noopener">🗺️ 지도에서 보기</a></div>
     </div>`;
   card.querySelector(".card-links a").addEventListener("click", (event) => {
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
@@ -570,7 +616,7 @@ function fallbackCopy(text, done) {
 /* ============================ 설정 ============================ */
 
 function updateBadge() {
-  refs.badge.textContent = uiAgent.sourceLabel();
+  refs.badge.textContent = location.protocol === "file:" ? "시연용 내장 샘플" : "공공데이터 코스";
 }
 
 function closeModal(id) {

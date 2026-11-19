@@ -25,13 +25,6 @@
     }
   ],
   "env": {
-    "OPENNADEULI_SEARCHOPENTOURISTSPOTS": "",
-    "OPENNADEULI_SEARCHACCESSIBLETRAILS": "",
-    "OPENNADEULI_SEARCHSTEPFREERESTAURANTS": "",
-    "OPENNADEULI_MAPKAKAO": "",
-    "OPENNADEULI_USE_LIVE": "false",
-    "PORT": "8899",
-    "CORS_ORIGINS": "",
     "ENABLE_SETTINGS": "false"
   },
   "rewrites": [

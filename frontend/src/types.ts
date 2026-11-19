@@ -1,8 +1,18 @@
+export type SourceType = 'live_api' | 'public_dataset' | 'fallback_mock';
+
+export interface PublicSource {
+  sourceType?: SourceType | null;
+  provider?: string;
+  sourceUrl?: string;
+  fetchedAt?: string | null;
+  sourceUpdatedAt?: string | null;
+}
+
 /** 에이전트 응답에서 사용하는 카드 UI 타입 */
-export interface CourseCard {
+export interface CourseCard extends PublicSource {
   no: number;
-  day?: number;
-  time?: string;
+  day?: number | null;
+  time?: string | null;
   phase: string;
   kind?: string;
   mapQuery?: string;
@@ -12,12 +22,15 @@ export interface CourseCard {
   badges: string[];
   details?: Record<string, string>;
   tip: string;
+  verifiedAttributes?: { label: string; value: string; field: string }[];
+  accessibilityFetchedAt?: string | null;
+  verificationNotice?: string;
 }
 
 export interface RoutePoint {
   no: number;
-  day: number;
-  time: string;
+  day: number | null;
+  time: string | null;
   phase: string;
   name: string;
   address: string;
@@ -35,6 +48,7 @@ export interface CourseStep {
   done?: string;
   args?: unknown;
   notes?: string[];
+  source?: PublicSource;
   labels?: string[];
 }
 
@@ -87,9 +101,7 @@ export interface CourseAnswer {
   cards: CourseCard[];
   summary: string[];
   invite: string;
-  route: {
-    points: CourseCard[];
-  };
+  route: { points: RoutePoint[] };
   followups: string[];
   meta: {
     source: string;
@@ -105,21 +117,13 @@ export interface CourseResponse {
     step?: string;
     detail?: string;
     call?: { name: string; args: unknown };
-    result?: {
-      source: string;
-      items: Array<{
-        contentid?: string;
-        title: string;
-        addr1?: string;
-        emoji?: string;
-        barrier?: Record<string, unknown>;
-        usageHour?: string;
-        tip?: string;
-      }>;
-      excluded?: string[];
-      note?: string;
+    result?: PublicSource & {
+      status: 'success' | 'empty' | 'unavailable' | 'skipped';
+      count: number;
+      note?: string | null;
     };
   }>;
   answer?: CourseAnswer;
   source?: string;
+  sourceType?: SourceType | null;
 }
