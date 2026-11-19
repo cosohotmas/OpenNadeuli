@@ -50,6 +50,11 @@ AI 코딩 에이전트(Claude Code, Codex, Cursor 등)가 이 저장소에서 �
 | 지도 | 루트 HTML: 네이버 지도 검색(mapUrl) + 카카오 동선 요약, React 프런트 미도입 | 루트 `index.html`, `frontend/src/App.tsx` |
 | API 키 (프런트) | `VITE_*` 미사용, `http://127.0.0.1:8899` 하드코딩 | `frontend/src/lib/api.ts` (알려진 문제: 배포 시 실패) |
 
+## 보안 원칙 (코드 읽기 기준)
+
+- `POST /api/settings`는 `ENABLE_SETTINGS`가 `1`/`true`/`yes`일 때만 허용되며, 활성화 시 인증 없이 요청 본문의 키를 포함한 설정 전체를 응답으로 반환합니다(코드: `backend/src/api/routes.py` 91-102행). 활성 상태 실행 검증은 미실시이므로, **공개 배포에서 `ENABLE_SETTINGS`를 활성화하지 마십시오**.
+- API 키는 서버 메모리(`os.environ`)에만 저장되며, 파일에는 저장되지 않습니다. 서버 재시작 시 소멸합니다(Vercel 서버리스 환경에서 유지 여부는 확인 불가).
+
 ## 주요 파일 구조
 
 루트(Vanilla JS 정적 앱, 지위 미정 TODO(확인 필요)):
@@ -158,7 +163,7 @@ CONVERSATION_LOG.md     작업 기록
 
 ## 기본 스킬 구성 (2026-11-05 추가)
 
-이 프로젝트는 `.agents/skills/` 레지스트리와 프로젝트 루트의 `skills.config.json`을 기본 스킬 구성으로 사용합니다.
+이 프로젝트는 `.agents/skills/` 레지스트리와 프로젝트 루트의 `skills.config.json`을 기본 스킬 구성으로 참조합니다. 둘 다 저장소에 **없음(확인됨)** (git ls-files 결과).
 
 ### 설치 방법
 
@@ -166,9 +171,9 @@ CONVERSATION_LOG.md     작업 기록
 - 프로젝트 **로컬 설치**만 허용 (`-g` 전역 설치 금지)
 - 버전 고정하여 설치
 - 135개 전체 목록(k-skill)은 컨텍스트 낭비이므로 목록 파일 경로만 안내:
-  - `.agents/skills/k-skill/k-skill-list.md` (존재 여부 확인 필요)
-  - `.agents/skills/skills-sh/skills-rank-all-time-1a.md` ~ `1b-2.md` (존재 여부 확인 필요)
-  - `.agents/skills/skills-sh/skills-rank-all-time-2a-1.md` ~ `2a-3.md` (존재 여부 확인 필요)
+  - `.agents/skills/k-skill/k-skill-list.md` (저장소에 없음(확인됨))
+  - `.agents/skills/skills-sh/skills-rank-all-time-1a.md` ~ `1b-2.md` (저장소에 없음(확인됨))
+  - `.agents/skills/skills-sh/skills-rank-all-time-2a-1.md` ~ `2a-3.md` (저장소에 없음(확인됨))
 
 ## 환경변수 비교 (코드 읽는 이름 vs .env.example 이름)
 
