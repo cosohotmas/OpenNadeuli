@@ -16,6 +16,8 @@ export interface CourseCard extends PublicSource {
   phase: string;
   kind?: string;
   mapQuery?: string;
+  lat?: number | null;
+  lng?: number | null;
   name: string;
   address: string;
   emoji: string;

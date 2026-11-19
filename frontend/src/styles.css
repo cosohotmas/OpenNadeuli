@@ -282,3 +282,5 @@ a { color: var(--brand-dark); }
 .route-map-marker { cursor: pointer; }
 .route-popup { max-width: 15rem; padding: .5rem; font-size: .8rem; }
 .route-popup p { margin: .2rem 0; }
+
+.course-map-links { display: flex; flex-wrap: wrap; align-items: center; gap: .65rem; }

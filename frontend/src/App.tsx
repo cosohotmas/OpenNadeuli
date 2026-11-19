@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import type { ChatMessage, CourseSchedule, CourseStep } from './types';
+import { kakaoLinks } from './lib/kakao-route.js';
+import type { CourseCard, ChatMessage, CourseSchedule, CourseStep } from './types';
 import { SampleCourse } from './lib/sample-course';
 import { postCourse } from './lib/api';
 import { sourceLabel, sourceLines } from './lib/course-client.js';
@@ -22,8 +23,13 @@ const defaultSchedule: CourseSchedule = {
   hotel: true,
 };
 
-const mapUrl = (name: string, address: string) =>
-  `https://map.naver.com/p/search/${encodeURIComponent(`${name} ${address}`.trim())}`;
+function ExternalMapLinks({ place }: { place: Pick<CourseCard, 'name' | 'address' | 'lat' | 'lng'> }) {
+  const links = kakaoLinks(place);
+  return <>
+    <a className="map-link" href={links.map} target="_blank" rel="noopener noreferrer">카카오맵에서 열기 ↗</a>
+    {links.directions && <a className="map-link" href={links.directions} target="_blank" rel="noopener noreferrer">길찾기 ↗</a>}
+  </>;
+}
 
 const App = () => {
   const [engine, setEngine] = useState(() => new SampleCourse());
@@ -33,6 +39,7 @@ const App = () => {
   const [inputValue, setInputValue] = useState('');
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [invitePlaces, setInvitePlaces] = useState<CourseCard[]>([]);
   const [inviteText, setInviteText] = useState('');
   const scheduleRef = useRef<HTMLDetailsElement>(null);
   const requestId = useRef(0);
@@ -129,7 +136,11 @@ const App = () => {
       `- ${card.day ? `${card.day}일차 ${card.time} · ` : ''}${card.name}${card.address ? ` (${card.address})` : ''}`,
     ).join('\n');
     const checkpoints = message.summary?.length ? `\n\n안심 체크포인트\n${message.summary.map((line) => `- ${line}`).join('\n')}` : '';
-    setInviteText(message.invite || `함께 나들이 가요!\n\n${places}${checkpoints}`);
+    const cards = message.cards || [];
+    setInvitePlaces(cards);
+    const links = cards.map((card) => `${card.name} ${kakaoLinks(card).map}`).join('\n');
+    const text = message.invite || `함께 나들이 가요!\n\n${places}${checkpoints}`;
+    setInviteText(links ? `${text}\n\n카카오맵\n${links}` : text);
     setToast(null);
     inviteDialogRef.current?.showModal();
   };
@@ -251,19 +262,14 @@ const App = () => {
                         </dl>
                       )}
                       {card.tip && <div className="card-tip">💡 {card.tip}</div>}
-                      <a
-                        className="map-link"
-                        href={mapUrl(card.mapQuery || card.name, card.mapQuery ? '' : card.address)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label={`${card.no}번 ${card.name} 지도에서 보기`}
-                        onClick={(event) => {
-                          if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-                          if (resultMaps.current.get(msg.id)?.focusVisit(card.no)) event.preventDefault();
-                        }}
-                      >
-                        🗺️ 지도에서 보기
-                      </a>
+                      <div className="course-map-links">
+                        {!!msg.route?.points.length && <button className="btn" type="button" onClick={() => {
+                          if (!resultMaps.current.get(msg.id)?.focusVisit(card.no)) {
+                            setToast('내장 지도에서 이 장소의 위치를 표시할 수 없어요.');
+                          }
+                        }}>내장 지도 위치</button>}
+                        <ExternalMapLinks place={card} />
+                      </div>
                     </article>
                   ))}
                 </div>
@@ -391,6 +397,9 @@ const App = () => {
         <section className="invite-preview" aria-label="초대장 미리보기">
           <h3>오픈나들이 · 가족 초대장</h3>
           <p>{inviteText}</p>
+          {invitePlaces.map((card) => <div className="course-map-links" key={card.no}>
+            <strong>{card.name}</strong><ExternalMapLinks place={card} />
+          </div>)}
         </section>
         <textarea
           aria-label="초대장 텍스트 편집"

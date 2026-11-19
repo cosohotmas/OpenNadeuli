@@ -1,3 +1,4 @@
+import { kakaoLinks } from '../lib/kakao-route.js';
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import type { RoutePoint } from '../types';
 import { enqueueGeocode, ensureKakao, geocodePoint, type Coordinates } from '../lib/kakao-route.js';
@@ -34,6 +35,16 @@ function popupFor(point: RoutePoint) {
   const access = document.createElement('p');
   access.textContent = point.barrier.join(' · ');
   content.append(name, details, access);
+  const links = kakaoLinks(point);
+  for (const [label, url] of [['카카오맵에서 열기 ↗', links.map], ['길찾기 ↗', links.directions]] as const) {
+    if (!url) continue;
+    const link = document.createElement('a');
+    link.href = url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.textContent = label;
+    content.append(link, document.createTextNode(' '));
+  }
   return content;
 }
 
@@ -132,7 +143,7 @@ const CourseMap = forwardRef<CourseMapHandle, { points: RoutePoint[] }>(function
         pin.setAttribute('aria-label', `${point.no}번 ${point.name} 무장애 정보`);
         const showPopup = () => {
           map.panTo(position);
-          popup.setContent(popupFor(point));
+          popup.setContent(popupFor({ ...point, ...coordinates }));
           popup.setPosition(position);
           popup.open(map);
         };

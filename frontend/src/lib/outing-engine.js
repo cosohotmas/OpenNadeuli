@@ -1611,6 +1611,7 @@ class OutingAgent {
     const spots = results.spots?.items || [];
     const trails = results.trails?.items || [];
     let si = 0, ti = 0;
+    const usedSpots = new Set();
     let hourFallbackNoted = false;
     let unverifiedNoted = false;
     for (const ev of ctx.schedule.events) {
@@ -1618,28 +1619,27 @@ class OutingAgent {
       if (ev.act === "spot") {
         /* 이벤트 시간대(새벽·야간 포함)에 운영 중인 곳을 우선 배정 — 24시간 운영 장소 반영 */
         const fits = (sp) =>
-          spotOpenAt(sp.usageHour, ev.start, ev.end) &&
-          !(ev.start < 9 && !hoursKnown(sp.usageHour));   /* 새벽 슬롯은 운영시간 명시 곳만 */
-        let pick = null, anyOpen = false, usedUnverified = false;
+          !usedSpots.has(sp) && spotOpenAt(sp.usageHour, ev.start, ev.end);   /* 새벽 슬롯은 운영시간 명시 곳만 */
+        let pick = null;
         if (spots.length) {
           for (let k = 0; k < spots.length; k++) {   /* 1차: 무장애 검증된 곳만 */
             const cand = spots[(ctx.variant + si + k) % spots.length];
             if (cand.liveUnverified || !fits(cand)) continue;
-            pick = cand; anyOpen = true; break;
+            pick = cand; break;
           }
           if (!pick) {
             for (let k = 0; k < spots.length; k++) {   /* 2차: 조건 완화 — 미검증 실시간 결과 허용 */
               const cand = spots[(ctx.variant + si + k) % spots.length];
               if (!fits(cand)) continue;
-              pick = cand; anyOpen = true; usedUnverified = !!cand.liveUnverified; break;
+              pick = cand; break;
             }
           }
-          if (!pick) pick = spots[(ctx.variant + si) % spots.length];   /* 전부 불일치 → 회전 폴백 */
+          if (pick) usedSpots.add(pick);
           si++;
         }
-        if (spots.length && !anyOpen && !hourFallbackNoted) {
+        if (spots.length && !pick && !hourFallbackNoted) {
           hourFallbackNoted = true;
-          h.onNote("선택 시간대에 운영 중 표시된 관광지 정보가 부족해 운영시간 확인이 필요한 곳도 함께 골랐어요.");
+          h.onNote("선택 시간대에 배치할 수 있는 관광지 후보가 부족해 일부 슬롯을 비웠어요.");
         }
         if (pick?.liveUnverified && !unverifiedNoted) {
           unverifiedNoted = true;
@@ -1647,7 +1647,7 @@ class OutingAgent {
         }
         ev.pick = pick;
       } else {
-        ev.pick = trails.length ? trails[(ctx.variant + ti++) % trails.length] : null;
+        ev.pick = ti < trails.length ? trails[(ctx.variant + ti++) % trails.length] : null;
       }
       if (!ev.pick) {
         h.onNote(`${ev.day === 2 ? "2일차" : "1일차"} ${fmtT(ev.start)} ${ev.act === "trail" ? "산책로" : "관광지"} 후보가 없어 일정에서 제외했어요.`);
@@ -1661,26 +1661,21 @@ class OutingAgent {
     const hotels = results.hotels?.items || [];
     const used = new Set();
     const CAFE_RE = /카페|베이커리|브런치|디저트|다방|찻집/i;
-    let lunchPickRef = null;
     const pickRest = (filterFn) => {
       const pool = filterFn ? rests.filter(filterFn) : rests.slice();
       const unused = pool.filter((r) => !used.has(r.bizesId || r.bizesNm));
-      const pick = this.#pickNth(unused.length ? unused : pool, ctx.variant);
+      const pick = this.#pickNth(unused, ctx.variant);
       if (pick) used.add(pick.bizesId || pick.bizesNm);
       return pick;
     };
     for (const ev of ctx.schedule.events) {
       if (ev.kind === "lunch" || ev.kind === "dinner") {
-        ev.pick = pickRest();
+        ev.pick = pickRest((r) => !CAFE_RE.test(`${r.indsMclsNm || ""} ${r.indsSclsNm || ""}`));
         if (!ev.pick) {
           h.onNote(`${ev.day === 2 ? "2일차" : "1일차"} ${fmtT(ev.start)} 식당 후보가 없어 일정에서 제외했어요.`);
-        } else if (ev.kind === "dinner" && lunchPickRef && (ev.pick.bizesId || ev.pick.bizesNm) === (lunchPickRef.bizesId || lunchPickRef.bizesNm)) {
-          ev.pick = null;
-          h.onNote("식당 후보가 하나뿐이라 저녁은 점심 장소 재방문을 권해요.");
         }
-        if (ev.kind === "lunch" && ev.pick) lunchPickRef = ev.pick;
       } else if (ev.kind === "cafe") {
-        ev.pick = pickRest((r) => CAFE_RE.test(`${r.indsMclsNm || ""} ${r.indsSclsNm || ""} ${r.bizesNm || ""}`)) || pickRest();
+        ev.pick = pickRest((r) => CAFE_RE.test(`${r.indsMclsNm || ""} ${r.indsSclsNm || ""} ${r.bizesNm || ""}`));
         if (!ev.pick) h.onNote(`${ev.day === 2 ? "2일차" : "1일차"} ${fmtT(ev.start)} 카페 후보가 없어 일정에서 제외했어요.`);
       } else if (ev.kind === "hotel") {
         ev.pick = hotels.length ? this.#pickNth(hotels, ctx.variant) : null;
@@ -2008,15 +2003,16 @@ function normalizeSchedule(raw) {
   };
 }
 
-const ACT_DUR = { act: 2.5, lunch: 1.25, cafe: 1, dinner: 1.5, hotel: 0.5 };
-const WINDOW = { lunch: [11, 13], cafe: [13.75, 16], dinner: [17, 18.75] };
+const VISIT_WINDOWS = [
+  ["act", 9, 11.5, 9],
+  ["lunch", 11, 14, 11.5, "meal"],
+  ["act", 12.5, 15.5, 13.5],
+  ["cafe", 14, 17, 15.5, "cafe"],
+  ["act", 16, 19, 17],
+  ["dinner", 17, 20.5, 18.5, "meal"],
+  ["hotel", 17.5, 24, 20, "hotel"],
+];
 
-/**
- * 일정 설정 → 이벤트 배열 (유연한 스케줄링).
- * 활동을 시간대 칸에 고정하지 않고, 남은 시간과 끼니·카페 시간 창에 맞춰 배치한다.
- * pref.trailOk: 발화 테마상 산책로 배치 가능(바다·공원·산책, 우천 아님) 여부
- * 슬라이더로 지정한 시간 범위(d1·d2)는 항상 그대로 존중한다.
- */
 function buildSchedule(sched, pref = {}) {
   const days = sched.tripType === "overnight"
     ? [{ day: 1, ...sched.d1 }, { day: 2, ...sched.d2 }]
@@ -2027,59 +2023,25 @@ function buildSchedule(sched, pref = {}) {
 }
 
 function scheduleDayRange({ day, s, e }, sched, pref) {
-  const isD2 = day === 2;
-  /* 슬라이더로 지정한 시간 범위는 그대로 존중 — 00시 시작이면 00시부터 배치하고, 그 어떤 키워드(부모님 동행 등)로도 미루지 않는다 */
-  const sUse = s;
-  const lunch = sched.meal && sUse < 14 && e > 11;
-  const dinner = sched.meal && !isD2 && e >= 17;
-  const cafe = sched.cafe && sUse < 17 && e > 13;
+  const candidates = VISIT_WINDOWS.flatMap(([kind, opens, closes, preferred, option]) => {
+    if (option && !sched[option] || kind === "hotel" && (day !== 1 || sched.tripType !== "overnight")) return [];
+    const first = Math.max(s, opens);
+    const end = Math.min(e, closes);
+    return first < end ? [{ kind, day, start: Math.max(first, Math.min(preferred, end - 0.5)), end }] : [];
+  }).sort((a, b) => a.start - b.start);
 
-  /* 끼니·카페 시간 창을 앵커로 세우고, 앵커 사이 빈 구간에 활동을 균등 분배해 채운다 */
-  const anchors = [lunch && "lunch", cafe && "cafe", dinner && "dinner"].filter(Boolean)
-    .sort((a, b) => WINDOW[a][0] - WINDOW[b][0]);
-  const hotelGap = !isD2 && sched.tripType === "overnight" && sched.hotel ? 1.5 : 0;
-  const dayEnd = e - hotelGap;   /* 숙소 체크인 1.5시간은 하루 끝에 비워 둠 */
-
-  const seq = [];
-  let cursor = sUse;
-  for (const kind of anchors) {
-    const [lo, hi] = WINDOW[kind];
-    let start = Math.max(cursor, lo);
-    if (start > hi) start = hi;      /* 창이 밀렸으면 창 끝으로 */
-    if (start < cursor) break;       /* 끼니 시간이 이미 지났으면 이후 끼니도 생략 */
-    const end = Math.min(e, start + ACT_DUR[kind]);
-    if (end - start < 0.25) break;
-    fillWithActs(seq, cursor, start, day);
-    seq.push({ kind, day, start, end });
-    cursor = end;
+  const events = [];
+  let nextStart = s;
+  let activity = 0;
+  for (const candidate of candidates) {
+    const start = Math.max(nextStart, candidate.start);
+    if (start >= candidate.end) continue;
+    const event = { ...candidate, start, end: Math.min(candidate.end, start + 1) };
+    if (event.kind === "act") event.act = pref.trailOk && activity++ % 3 === 1 ? "trail" : "spot";
+    events.push(event);
+    nextStart = start + 1;
   }
-  fillWithActs(seq, cursor, dayEnd, day);
-  if (hotelGap) seq.push({ kind: "hotel", day, start: e - 1.5, end: e });
-
-  /* 산책로 교차: 날 전체 활동 순서 기준 (관광지→산책로→관광지…) */
-  let ai = 0;
-  for (const ev of seq) {
-    if (ev.kind !== "act") continue;
-    ev.act = pref.trailOk && ai % 3 === 1 ? "trail" : "spot";
-    ai++;
-  }
-  return seq;
-}
-
-/* [from, to] 빈 구간을 활동으로 채움 — 활동 1개 2.5시간 기준 균등 분할(0.75~3시간) */
-function fillWithActs(seq, from, to, day) {
-  const len = to - from;
-  if (len < 0.75) return;   /* 너무 짧은 틈은 비워 둔다 */
-  let n = Math.max(1, Math.round(len / 2.5));
-  if (len / n > 3) n += 1;
-  const dur = Math.max(0.75, Math.round((len / n) * 4) / 4);
-  for (let i = 0; i < n; i++) {
-    seq.push({
-      kind: "act", day,
-      start: from + i * dur,
-      end: i === n - 1 ? to : from + (i + 1) * dur,   /* 마지막 활동이 구간 끝까지 채움 */
-    });
-  }
+  return events;
 }
 
 const hh = (h) => `${String(h).padStart(2, "0")}:00`;
@@ -2173,10 +2135,7 @@ function spotOpenAt(usageHour, start, end) {
 }
 
 /* 운영시간이 '명시된' 장소인지 — 연중무휴·24시간 또는 HH:MM~HH:MM 범위 */
-function hoursKnown(usageHour) {
-  const u = String(usageHour || "");
-  return /연중무휴|24시간/.test(u) || /(\d{1,2}):(\d{2})\s*[~–-]\s*(\d{1,2}):(\d{2})/.test(u);
-}
+
 
 /** 이벤트 → 카드 phase 라벨 ("1일차 00:00 새벽" / "09:00 오전" / "13:30 오후" / "21:15 야간") */
 function schedulePhase(ev, overnight) {

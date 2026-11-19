@@ -111,3 +111,12 @@ async function geocodePoint(pt) {
 }
 
 export { enqueueGeocode, ensureKakao, geocodePoint };
+
+export function kakaoLinks({ name, address, lat, lng }) {
+  const base = 'https://map.kakao.com/link';
+  if (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+    const pin = `${encodeURIComponent(name)},${lat},${lng}`;
+    return { map: `${base}/map/${pin}`, directions: `${base}/to/${pin}` };
+  }
+  return { map: `${base}/search/${encodeURIComponent([name, address].filter(Boolean).join(' '))}` };
+}
