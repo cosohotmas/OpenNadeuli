@@ -125,7 +125,7 @@ a { color: var(--brand-dark); }
 .lookup-details li span { display: block; color: var(--muted); }
 
 .course-cards { display: grid; gap: .85rem; padding-inline-start: .85rem; border-inline-start: 3px solid #d9efe9; }
-.card, .route-stops li {
+.card {
   padding: clamp(.8rem, 2vw, 1.2rem);
   border-radius: 1rem;
   border: 1px solid var(--line);
@@ -163,10 +163,8 @@ a { color: var(--brand-dark); }
   border-radius: 1rem;
   border: 1px solid var(--line);
 }
+.route-summary { margin-bottom: .85rem; scroll-margin-block-start: .75rem; }
 .route-summary h2, .checkpoints h2, .invite-dialog h2 { margin: 0; font-size: 1.1rem; }
-.route-stops { display: grid; gap: .5rem; list-style: none; margin: .65rem 0 0; padding: 0; }
-.route-stops li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .6rem; }
-.route-stops p { margin: .1rem 0; color: var(--muted); }
 .checkpoints ul { margin: .5rem 0 0; padding-inline-start: 1.15rem; }
 .invite-button, .followups { margin-top: .85rem; }
 

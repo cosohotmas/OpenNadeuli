@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { ChatMessage, CourseSchedule } from './types';
 import { SampleCourse } from './lib/sample-course';
-import CourseMap from './components/CourseMap';
+import CourseMap, { type CourseMapHandle } from './components/CourseMap';
 import TimeRange, { formatHour } from './components/TimeRange';
 
 const quickQuestions = [
@@ -36,10 +36,16 @@ const App = () => {
   const requestId = useRef(0);
   const busy = useRef(false);
   const inviteDialogRef = useRef<HTMLDialogElement>(null);
+  const resultMaps = useRef(new Map<number, CourseMapHandle>());
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const lastMessage = messages[messages.length - 1];
+    const resultMap = lastMessage?.route?.points.length
+      ? document.getElementById(`course-route-${lastMessage.id}`)
+      : null;
+    if (resultMap) resultMap.scrollIntoView({ block: 'start' });
+    else messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   const sendMessage = async (text: string) => {
@@ -166,6 +172,18 @@ const App = () => {
                   {msg.labels.map((label) => <li key={label}>{label}</li>)}
                 </ul>
               )}
+              {!!msg.route?.points.length && (
+                <section id={`course-route-${msg.id}`} className="route-summary" aria-label="이번 나들이 전체 동선 요약">
+                  <div className="section-heading">
+                    <h2>📋 이번 나들이 전체 동선 요약</h2>
+                    <button className="btn" type="button" onClick={() => openInvite(msg)}>초대장 보기</button>
+                  </div>
+                  <CourseMap points={msg.route.points} ref={(map) => {
+                    if (map) resultMaps.current.set(msg.id, map);
+                    else resultMaps.current.delete(msg.id);
+                  }} />
+                </section>
+              )}
               {msg.cards && msg.cards.length > 0 && (
                 <div className="course-cards">
                   {msg.cards.map((card) => (
@@ -202,38 +220,17 @@ const App = () => {
                         href={mapUrl(card.mapQuery || card.name, card.mapQuery ? '' : card.address)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        aria-label={`${card.name} 지도에서 보기 (새 탭)`}
+                        aria-label={`${card.no}번 ${card.name} 지도에서 보기`}
+                        onClick={(event) => {
+                          if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                          if (resultMaps.current.get(msg.id)?.focusVisit(card.no)) event.preventDefault();
+                        }}
                       >
                         🗺️ 지도에서 보기
                       </a>
                     </article>
                   ))}
                 </div>
-              )}
-              {!!msg.route?.points.length && (
-                <section className="route-summary" aria-label="이번 나들이 전체 동선 요약">
-                  <div className="section-heading">
-                    <h2>이번 나들이 전체 동선 요약</h2>
-                    <button className="btn" type="button" onClick={() => openInvite(msg)}>초대장 보기</button>
-                  </div>
-                  <CourseMap points={msg.route.points} />
-                  <ol className="route-stops">
-                    {msg.route.points.map((point) => (
-                      <li key={point.no}>
-                        <span className="card-no" aria-hidden="true">{point.no}</span>
-                        <div>
-                          <strong>{point.name}</strong>
-                          <p>{point.phase} · {point.address || point.query}</p>
-                          <div className="card-badges">{point.barrier.map((badge) => <span key={badge} className="badge">{badge}</span>)}</div>
-                          <a className="map-link" href={`https://map.kakao.com/link/search/${encodeURIComponent(point.queryAlt || point.query || point.name)}`}
-                            target="_blank" rel="noopener noreferrer" aria-label={`${point.name} 카카오맵에서 보기 (새 탭)`}>
-                            카카오맵에서 보기
-                          </a>
-                        </div>
-                      </li>
-                    ))}
-                  </ol>
-                </section>
               )}
               {!!msg.summary?.length && (
                 <section className="checkpoints">
