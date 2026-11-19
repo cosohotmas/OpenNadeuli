@@ -232,7 +232,6 @@ const App = () => {
         </div>
         <div className="header-actions">
           <span className="data-badge">공공데이터 코스</span>
-          <a className="btn" href="/elice-final.html">백업 화면</a>
           <button className="btn btn-ghost" type="button" onClick={resetChat} disabled={loading}>
             ↺ 대화 초기화
           </button>
@@ -371,11 +370,8 @@ const App = () => {
       </main>
 
       <div className="composer">
-        <div className="search-region">
-          <span>검색 지역</span><div ref={pickerHost} />
-          {locationRetry && <button type="button" className="btn location-retry" disabled={loading}
-            onClick={() => void sendMessage(locationRetry.text)}>현재 위치 확인 · {locationRetry.region}로 다시 검색</button>}
-        </div>
+        {locationRetry && <button type="button" className="btn location-retry" disabled={loading}
+          onClick={() => void sendMessage(locationRetry.text)}>현재 위치 확인 · {locationRetry.region}로 다시 검색</button>}
         <div className="quick-questions" aria-label="빠른 질문">
           {quickQuestions.map((question) => (
             <button key={question} className="chip" type="button" disabled={loading}
@@ -384,7 +380,7 @@ const App = () => {
         </div>
         <details className="schedule" ref={scheduleRef}>
           <summary>
-            일정 및 시간대 상세 설정
+            일정·시간대 및 지역 설정
             <strong>
               {formatHour(schedule.d1.s)}–{formatHour(schedule.d1.e)}
               {schedule.tripType === 'overnight' && ` / ${formatHour(schedule.d2.s)}–${formatHour(schedule.d2.e)}`}
@@ -393,6 +389,9 @@ const App = () => {
               {schedule.tripType === 'overnight' && schedule.hotel && ' · 숙소'}
             </strong>
           </summary>
+          <div className="search-region">
+            <span>검색 지역</span><div ref={pickerHost} />
+          </div>
           <fieldset disabled={loading} aria-label="나들이 일정">
             <div className="schedule-actions" role="group" aria-label="여행 유형">
               {(['day', 'overnight'] as const).map((type) => (
