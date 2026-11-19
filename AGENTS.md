@@ -143,9 +143,6 @@ CONVERSATION_LOG.md     작업 기록
 - 프런트 정적 서빙: 부분 검증 (python `http.server`는 정상, `vite preview`는 이 환경에서 무응답, 원인 미상)
 - 브라우저 렌더링 연동: 미실행(원인: vite preview 무응답)
 - 프런트→백엔드 실제 호출: 미실행(원인: vite preview 무응답)
-- CORS preflight: 부분 검증(검증 origin `http://127.0.0.1:5188`에서는 `access-control-allow-origin` 반환 확인. 허용 목록 외 origin은 측정 당시 로컬 코드 기준 현재 차단 확인(과거 관찰, 현재 미재현))
-- 검증하지 않은 항목을 "완료"라고 말하지 않습니다.
-- 브라우저 검증이 막히면 원인과 함께 "미검증"으로 표기하고, 우회 검증(대체 서버 등)을 썼다면 우회 사실을 기록합니다.
 
 ## 정보 출처와 라이선스
 
