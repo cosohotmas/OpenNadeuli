@@ -1,10 +1,10 @@
 import './card-metadata.css';
 import React, { useState, useEffect, useRef } from 'react';
 import { kakaoLinks } from './lib/kakao-route.js';
-import type { CourseCard, ChatMessage, CourseSchedule, CourseStep } from './types';
+import type { CourseCard, ChatMessage, CourseSchedule, CourseStep, TransitStation } from './types';
 import { SampleCourse } from './lib/sample-course';
 import { postCourse } from './lib/api';
-import { cardMetadata, familyInvite, sourceLines } from './lib/course-client.js';
+import { cardMetadata, familyInvite, sourceLines, stationInfo, stationUseNote } from './lib/course-client.js';
 import CourseMap, { type CourseMapHandle } from './components/CourseMap';
 import TimeRange, { formatHour } from './components/TimeRange';
 
@@ -36,6 +36,21 @@ function CardMetadata({ card }: { card: CourseCard }) {
       {card.sourceUrl && <a href={card.sourceUrl} target="_blank" rel="noopener noreferrer">공식 원문 ↗</a>}
     </details>}
   </>;
+}
+
+function StationDetails({ station }: { station: TransitStation }) {
+  const info = stationInfo(station);
+  return <div className="course-station">
+    <strong>🚇 {info.title}</strong>
+    {station.distanceM != null && <span> · 직선 약 {station.distanceM}m</span>}
+    <div className="course-meta-chips" aria-label="역사 설비 설치 현황">
+      {info.facilities.map((item) => <span className="course-meta-chip course-meta-facility" key={item}>{item}</span>)}
+    </div>
+    <a href={station.sourceUrl} target="_blank" rel="noopener noreferrer">{info.source}</a>
+    <div>API 조회 <time dateTime={station.fetchedAt}>{station.fetchedAt}</time></div>
+    <div><a href={station.coordinateSourceUrl} target="_blank" rel="noopener noreferrer">역 위치 원본</a> · 기준일 {station.coordinateReferenceDate}</div>
+    <div>{stationUseNote}</div>
+  </div>;
 }
 
 function ExternalMapLinks({ place }: { place: Pick<CourseCard, 'name' | 'address' | 'lat' | 'lng'> }) {
@@ -100,6 +115,7 @@ const App = () => {
         searchNearbyRestaurants: '인근 식당·카페',
         searchStayHotels: '한국관광공사 숙박',
         searchAccessibleTrails: '무장애 탐방로',
+        searchBusanStationFacilities: '부산 도시철도 역사 편의시설',
       };
       const statuses = { success: '조회 완료', empty: '조건에 맞는 결과 없음', unavailable: '조회 실패', skipped: '조회 보류' };
       const steps: CourseStep[] = response.events.flatMap((event): CourseStep[] => {
@@ -249,6 +265,7 @@ const App = () => {
                         </div>
                       )}
                       {card.tip && <div className="card-tip">💡 {card.tip}</div>}
+                      {card.nearbyStation && <section aria-label="인근 역사 이동 참고"><h4>인근 역사 이동 참고</h4><StationDetails station={card.nearbyStation} /></section>}
                       <div className="course-map-links">
                         {!!msg.route?.points.length && <button className="btn" type="button" onClick={() => {
                           if (!resultMaps.current.get(msg.id)?.focusVisit(card.no)) {
@@ -261,10 +278,14 @@ const App = () => {
                   ))}
                 </div>
               )}
-              {!!msg.summary?.length && (
+              {(!!msg.summary?.length || !!msg.transitStations?.length) && (
                 <section className="checkpoints">
                   <h2>안심 체크포인트</h2>
-                  <ul>{msg.summary.map((line) => <li key={line}>{line}</li>)}</ul>
+                  {!!msg.summary?.length && <ul>{msg.summary.map((line) => <li key={line}>{line}</li>)}</ul>}
+                  {!!msg.transitStations?.length && <div>
+                    <h3>인근 역사 이동 참고</h3>
+                    {msg.transitStations.map((station) => <StationDetails station={station} key={station.code} />)}
+                  </div>}
                 </section>
               )}
               {!!msg.visitNotes?.length && (

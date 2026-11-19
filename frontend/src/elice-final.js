@@ -1,5 +1,5 @@
 import './card-metadata.css';
-import { cardMetadata, familyInvite, CourseApiError, requestCourse, sourceLabel, sourceLines } from "./lib/course-client.js";
+import { cardMetadata, familyInvite, CourseApiError, requestCourse, sourceLabel, sourceLines, stationInfo, stationUseNote } from "./lib/course-client.js";
 import { enqueueGeocode, ensureKakao, geocodePoint, kakaoLinks } from "./lib/kakao-route.js";
 import { BADGE_DEFS, DEFAULT_SETTINGS, OutingAgent, TOOL_SPECS, buildSchedule } from "./lib/outing-engine.js";
 
@@ -115,6 +115,7 @@ async function submit(text) {
         searchOpenTouristSpots: "한국관광공사 관광지",
         searchStayHotels: "한국관광공사 숙박",
         searchAccessibleTrails: "무장애 탐방로",
+        searchBusanStationFacilities: "부산 도시철도 역사 편의시설",
       };
       const status = { success: "조회 완료", empty: "조건에 맞는 결과 없음", unavailable: "조회 실패", skipped: "조회 보류" };
       for (const event of response.events) {
@@ -271,11 +272,17 @@ function renderAnswer(content, chips, answer) {
     content.appendChild(rail);
   }
 
-  for (const [title, lines] of [["✅ 안심 체크포인트", answer.summary], ["방문 전 확인 메모", answer.visitNotes]]) {
-    if (!lines?.length) continue;
-    const sum = el("div", "summary");
-    sum.innerHTML = `<strong>${title}</strong><ul>${lines.map((line) => `<li>${esc(line)}</li>`).join("")}</ul>`;
+  if (answer.summary?.length || answer.transitStations?.length) {
+    const sum = el("section", "summary");
+    sum.innerHTML = `<strong>✅ 안심 체크포인트</strong>
+      ${answer.summary?.length ? `<ul>${answer.summary.map((line) => `<li>${esc(line)}</li>`).join("")}</ul>` : ""}
+      ${answer.transitStations?.length ? `<h3>인근 역사 이동 참고</h3>${answer.transitStations.map(stationHtml).join("")}` : ""}`;
     content.appendChild(sum);
+  }
+  if (answer.visitNotes?.length) {
+    const notes = el("section", "summary");
+    notes.innerHTML = `<strong>방문 전 확인 메모</strong><ul>${answer.visitNotes.map((line) => `<li>${esc(line)}</li>`).join("")}</ul>`;
+    content.appendChild(notes);
   }
 
   if (answer.invite) {
@@ -287,6 +294,21 @@ function renderAnswer(content, chips, answer) {
   }
 
   renderChips(chips, answer.followups || []);
+}
+
+function stationHtml(station) {
+  const info = stationInfo(station);
+  return `<div class="course-station">
+    <strong>🚇 ${esc(info.title)}</strong>
+    ${station.distanceM != null ? ` · 직선 약 ${esc(station.distanceM)}m` : ""}
+    <div class="course-meta-chips" aria-label="역사 설비 설치 현황">
+      ${info.facilities.map((item) => `<span class="course-meta-chip course-meta-facility">${esc(item)}</span>`).join("")}
+    </div>
+    <a href="${esc(station.sourceUrl)}" target="_blank" rel="noopener noreferrer">${esc(info.source)}</a>
+    <div>API 조회 <time datetime="${esc(station.fetchedAt)}">${esc(station.fetchedAt)}</time></div>
+    <div><a href="${esc(station.coordinateSourceUrl)}" target="_blank" rel="noopener noreferrer">역 위치 원본</a> · 기준일 ${esc(station.coordinateReferenceDate)}</div>
+    <div>${stationUseNote}</div>
+  </div>`;
 }
 
 function renderCard(c, focusVisit) {
@@ -315,6 +337,7 @@ function renderCard(c, focusVisit) {
         ${c.sourceUrl ? `<a href="${esc(c.sourceUrl)}" target="_blank" rel="noopener noreferrer">공식 원문 ↗</a>` : ""}
       </details>` : ""}
       ${c.tip ? `<div class="card-tip">💡 ${esc(c.tip)}</div>` : ""}
+      ${c.nearbyStation ? `<section aria-label="인근 역사 이동 참고"><h4>인근 역사 이동 참고</h4>${stationHtml(c.nearbyStation)}</section>` : ""}
       <div class="card-links">${focusVisit ? '<button type="button" class="btn">내장 지도 위치</button>' : ''} ${mapLinksHtml(c)}</div>
     </div>`;
   card.querySelector(".card-links button")?.addEventListener("click", () => {

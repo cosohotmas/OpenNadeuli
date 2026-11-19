@@ -7,12 +7,13 @@ import os
 import re
 import ssl
 from datetime import datetime, timezone
-from urllib.parse import unquote
+from urllib.parse import unquote, urlsplit
 
 import httpx
 import truststore
 
 from ..data.sample_data import REGION_CENTER
+from .busan_station_access import SOURCE as BUSAN_SOURCE, attach_nearby_stations, station_records
 from .nlu import default_region, parse_intent
 
 LOGGER = logging.getLogger(__name__)
@@ -53,14 +54,14 @@ def coordinates(item, lat_key, lng_key):
         return None, None
 
 
-async def read_items(client, url, key, params, *, shop=False):
+async def read_items(client, url, key, params, *, shop=False, flat=False):
     if not key:
         raise PublicDataUnavailable("서버 인증키 미설정")
     try:
         response = await client.get(url, params={**params, "serviceKey": key})
         response.raise_for_status()
         payload = response.json()
-        envelope = payload if shop else payload["response"]
+        envelope = payload if shop or flat else payload["response"]
         header = envelope["header"]
         code = str(header["resultCode"])
         if code not in {"00", "0000", "03", "0003"}:
@@ -312,7 +313,30 @@ async def public_course(text, schedule):
             pools = await asyncio.gather(*(shops(anchor) for anchor in anchors or [None])) if needs_shops else []
             return places, dict(zip(anchors, pools))
 
-        (places, nearby), hotels = await asyncio.gather(places_and_food(), lodging())
+        async def busan_facilities():
+            key = api_key("BuSan_Key")
+            endpoint = os.getenv("BuSan_End_Point", "").strip().rstrip("/")
+            valid = urlsplit(endpoint)
+            if not key or valid.scheme != "https" or valid.netloc != "apis.data.go.kr" or valid.query or valid.fragment:
+                return [], None, "서버 인증키 또는 엔드포인트 미설정"
+            if valid.path == "/B551542/AccessibleFacilities":
+                endpoint += "/getConvenience"
+            elif valid.path != "/B551542/AccessibleFacilities/getConvenience":
+                return [], None, "지원하지 않는 공급자 경로"
+            try:
+                rows, fetched, _ = await read_items(client, endpoint, key, {
+                    "act": "json", "pageNo": 1, "numOfRows": 200,
+                }, flat=True)
+                return station_records(rows, fetched), fetched, None
+            except (PublicDataUnavailable, OSError, ValueError) as exc:
+                LOGGER.warning("부산 역사 정보 조회 실패: %s", type(exc).__name__)
+                return [], None, "부산교통공사 편의시설 정보를 조회하지 못했어요."
+
+        requests = [places_and_food(), lodging()]
+        if region == "부산" and (wants_spots or needs_shops or needs_hotel):
+            requests.append(busan_facilities())
+        results = await asyncio.gather(*requests)
+        (places, nearby), hotels = results[:2]
 
     successful = any(result["status"] in {"success", "empty"} for result in tool_results)
     if not successful and any(result["status"] == "unavailable" for result in tool_results):
@@ -364,6 +388,13 @@ async def public_course(text, schedule):
                     add(candidate, phase, day, minute)
                     occupied = minute
 
+    transit_stations = []
+    if len(results) > 2 and cards:
+        stations, fetched, note = results[2]
+        transit_stations = attach_nearby_stations(cards, stations)
+        log_tool("searchBusanStationFacilities", {"region": region}, "success" if transit_stations else
+                 "empty" if fetched else "unavailable", BUSAN_SOURCE, fetched, count=len(transit_stations), note=note)
+
     points = [{**c, "query": c["address"] or c["name"], "queryAlt": c["name"],
                "barrier": [f'{v["label"]} · {v["value"]}' for v in c["verifiedAttributes"]] +
                           ([f'현장·유선 확인 권장 · {c["verificationNotice"]}'] if c["verificationNotice"] else [])} for c in cards]
@@ -391,12 +422,17 @@ async def public_course(text, schedule):
             invite_lines.append("📞 방문 전 출입구·영업 확인 권장")
         elif card["verificationNotice"]:
             invite_lines.append(f'📞 {card["verificationNotice"]}')
+    for station in transit_stations:
+        mobility = " · ".join(f'{item["label"]} {item["count"]}개' for item in station["facilities"]
+                              if item["code"] in {"elI", "elO", "ourbridge"})
+        if mobility:
+            invite_lines.append(f'🚇 인근 역사 참고 · {station["name"]}역 ({station["line"]}) · {mobility}')
     invite = "\n".join(invite_lines) if cards else ""
     intro = (f"{region} 공공데이터 방문 후보 {len(cards)}곳이에요. 시간은 일정 제안이며 실제 운영시간과 이동 시간은 확인해 주세요."
              if cards else f"{region}에서 조건에 맞는 결과가 없어요.")
     if any(result["status"] == "unavailable" for result in tool_results):
         intro += " 일부 공공데이터는 조회하지 못했어요."
     answer = {"type": "course", "intro": intro, "labels": intent.labels, "cards": cards,
-              "summary": summary, "visitNotes": visit_notes, "route": {"points": points}, "invite": invite, "followups": followups}
+              "summary": summary, "visitNotes": visit_notes, "transitStations": transit_stations, "route": {"points": points}, "invite": invite, "followups": followups}
     return {"answer": answer, "events": events + [{"type": "answer", "answer": answer}],
             "sourceType": "live_api" if successful else None}
