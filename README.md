@@ -72,11 +72,11 @@ node serve.mjs 8899   # 포트 8899 (백엔드와 포트 충돌 가능)
 
 > ⚠️ **포트 충돌 주의**: 루트 `serve.mjs`와 백엔드 `app.py` 모두 포트 8899를 기본으로 사용하므로, 동시 기동 시 포트 충돌이 발생할 수 있습니다.
 
-> React 프런트는 같은 origin의 `/api`를 호출합니다. 로컬 Vite 개발·프리뷰 서버는 이 요청을 8899 포트의 FastAPI로 전달합니다.
+> 기본 화면은 React·TypeScript·CSS입니다. 같은 서버에서 `/elice-final.html`을 열면 엘리스 HTML·CSS·Vanilla JS 백업을 실행할 수 있습니다. 두 화면은 브라우저에서 같은 내장 코스 엔진을 사용합니다.
 
 ## 3. 에이전트 동작 구조
 
-백엔드 FastAPI(`backend/src/api/routes.py`)가 프런트 요청을 받아 AI 에이전트 파이프라인을 실행합니다.
+React 화면과 엘리스 백업은 브라우저에서 같은 코스 엔진을 실행합니다. 아래 흐름은 별도로 제공하는 FastAPI의 `/api/course`를 직접 호출할 때 적용됩니다.
 
 ```
 사용자 발화 ("주말에 휠체어 타고 부산 바다 데크길 코스 찾아줘")
@@ -95,13 +95,13 @@ node serve.mjs 8899   # 포트 8899 (백엔드와 포트 충돌 가능)
    └─ 응답 JSON: { "events": [...], "answer": { ... }, "source": "sample" }
 ```
 
-프런트(`frontend/src/App.tsx`, `frontend/src/lib/api.ts`)는 `/api/course`로 `POST` 요청을 보내고, 응답(`answer.intro`, `answer.cards`, `answer.followups`)을 채팅 화면에 렌더링합니다.
+운영 React 화면(`frontend/src/App.tsx`)은 `frontend/src/lib/sample-course.ts`를 통해 내장 코스 엔진을 호출하고 응답을 채팅 화면에 렌더링합니다.
 
 각 단계는 이벤트 핸들러(`onStatus / onTool / onToolDone / onNote / onAnswer`)로 스트리밍되어 UI 타임라인에 표시됩니다.
 
 ## 4. 공공 API 실시간 연동 가이드
 
-앱은 기본으로 **내장 샘플 데이터**로 동작하고, **백엔드 서버 메모리(`os.environ`)에 API 키를 저장**하면 공공데이터포털 실시간 조회로 전환됩니다 (실패 시 자동 폴백). 인증키 발급은 포털 본인 가입이 필요합니다(약 5분).
+운영 화면은 **내장 샘플 데이터**로 동작합니다. 아래 공공데이터 설정은 개발 참고용입니다.
 
 ### 설정 저장 방식
 
@@ -258,9 +258,9 @@ vercel.json             Vercel 배포 설정 (FastAPI 함수 + 정적 파일)
 - **Vercel 배포**: `vercel.json` 설정 포함. GitHub 저장소 연결 후 Vercel에서 자동 배포.
 - 배포 구조: FastAPI 함수(`/api/:path*` → `api/index.py`)와 Vite 정적 파일(`frontend/dist`)
 - `.env`는 `.gitignore`로 제외. 실제 API 키는 Vercel 프로젝트 설정의 Environment Variables에 등록.
-- 운영 첫 화면은 사용자가 확정한 엘리스 최종본(`frontend/elice-final.html`)입니다. 내장 샘플로 브라우저에서 코스를 조립하며, 같은 도메인에 FastAPI도 함께 배포됩니다.
+- 운영 첫 화면 `/`은 React입니다. 엘리스 정적 백업은 `/elice-final.html`에서 실행되며 두 화면은 같은 코스 엔진을 사용합니다.
 - 다른 origin에서 API를 직접 호출하는 경우 해당 origin을 `CORS_ORIGINS`에 설정합니다.
-- Kakao JS SDK 도메인에 개발 포트와 Vercel 도메인을 등록해야 지도 기능이 정상 동작합니다(지도는 현재 React 프런트 미구현, 루트 HTML에만 참조됨).
+- Kakao JS SDK 도메인에 개발 포트와 Vercel 도메인을 등록해야 지도 기능이 정상 동작합니다(React와 엘리스 백업 공통).
 
 README.md               개요·실행법 (사람 독자)
 CONVERSATION_LOG.md     작업 기록
@@ -274,7 +274,6 @@ CONVERSATION_LOG.md     작업 기록
 
 - 내장 데이터(장소명·주소·시설 정보)는 **시연용 가상 데이터**입니다. 실제 방문 전
   각 지자체·시설 공식 정보를 확인하세요. **루트 앱은 장소 링크에 네이버 지도 검색을 사용하고, 동선 요약·지도에는 카카오를 함께 사용합니다.** React의 장소별 링크는 네이버 지도를 엽니다. 전체 동선 지도는 빌드 환경의 `OPENNADEULI_MAPKAKAO`에 카카오 **JavaScript 키**가 있고 현재 도메인이 카카오에 등록되어 있을 때 표시합니다.
-- React 프런트는 같은 origin의 `/api`로 코스 요청을 보냅니다.
 
 ## 8. 현재 검증 상태
 

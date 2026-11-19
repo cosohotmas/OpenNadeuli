@@ -1,172 +1,158 @@
 import { useEffect, useRef, useState } from 'react';
-import type { CourseCard } from '../types';
+import type { RoutePoint } from '../types';
+import { enqueueGeocode, ensureKakao, geocodePoint, type Coordinates } from '../lib/kakao-route.js';
 
 declare const __KAKAO_MAP_JS_KEY__: string;
 
 type Position = object;
-type MapView = { setBounds(bounds: object): void };
+type Bounds = { extend(position: Position): void };
+type MapView = { setBounds(bounds: Bounds): void; setCenter(position: Position): void; panTo(position: Position): void };
 type Overlay = { setMap(map: MapView | null): void };
-type Coordinates = { x: string; y: string };
-type Place = Coordinates & { place_name: string; address_name?: string };
-type MapLocation = { position: Position; approximate: boolean };
 type Maps = {
-  load(callback: () => void): void;
   LatLng: new (lat: number, lng: number) => Position;
-  LatLngBounds: new () => { extend(position: Position): void };
+  LatLngBounds: new () => Bounds;
   Map: new (element: HTMLElement, options: { center: Position; level: number }) => MapView;
-  CustomOverlay: new (options: { map: MapView; position: Position; content: HTMLElement }) => Overlay;
+  CustomOverlay: new (options: { map: MapView; position: Position; content: HTMLElement; clickable: boolean; zIndex: number }) => Overlay;
   Polyline: new (options: {
-    map: MapView; path: Position[]; strokeColor: string; strokeWeight: number; strokeStyle: string;
+    map: MapView; path: Position[][]; strokeColor: string; strokeWeight: number; strokeStyle: string;
   }) => Overlay;
-  services: {
-    Places: new () => { keywordSearch(query: string, callback: (places: Place[], status: string) => void): void };
-    Geocoder: new () => { addressSearch(query: string, callback: (places: Coordinates[], status: string) => void): void };
-    Status: { OK: string };
+  InfoWindow: new (options: { removable: boolean }) => {
+    close(): void;
+    setContent(content: HTMLElement): void;
+    setPosition(position: Position): void;
+    open(map: MapView): void;
   };
 };
 
-let sdk: Promise<Maps> | undefined;
-
-function loadMaps() {
-  sdk ??= new Promise<Maps>((resolve, reject) => {
-    const script = document.createElement('script');
-    const timeout = window.setTimeout(() => reject(new Error('Kakao Maps SDK timed out')), 10000);
-    const fail = () => {
-      window.clearTimeout(timeout);
-      reject(new Error('Kakao Maps SDK could not load'));
-    };
-    const params = new URLSearchParams({
-      appkey: __KAKAO_MAP_JS_KEY__,
-      libraries: 'services',
-      autoload: 'false',
-    });
-    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?${params}`;
-    script.onerror = fail;
-    script.onload = () => {
-      const maps = (window as Window & { kakao?: { maps: Maps } }).kakao?.maps;
-      if (!maps) {
-        fail();
-        return;
-      }
-      maps.load(() => {
-        window.clearTimeout(timeout);
-        resolve(maps);
-      });
-    };
-    document.head.appendChild(script);
-  });
-  return sdk;
+function popupFor(point: RoutePoint) {
+  const content = document.createElement('div');
+  content.className = 'route-popup';
+  const name = document.createElement('strong');
+  name.textContent = `${point.no}. ${point.name}`;
+  const details = document.createElement('p');
+  details.textContent = [point.phase, point.address || point.query].filter(Boolean).join(' · ');
+  const access = document.createElement('p');
+  access.textContent = point.barrier.join(' · ');
+  content.append(name, details, access);
+  return content;
 }
 
-const normalizeName = (name: string) => name.replace(/[^\p{L}\p{N}]/gu, '');
-
-function searchCoordinates<T extends Coordinates>(
-  maps: Maps,
-  search: (callback: (results: T[], status: string) => void) => void,
-  select: (results: T[]) => T | undefined,
-) {
-  return new Promise<Position | null>((resolve) => {
-    const timeout = window.setTimeout(() => resolve(null), 5000);
-    search((results, status) => {
-      window.clearTimeout(timeout);
-      const match = status === maps.services.Status.OK ? select(results) : undefined;
-      const lat = Number(match?.y);
-      const lng = Number(match?.x);
-      resolve(Number.isFinite(lat) && Number.isFinite(lng) ? new maps.LatLng(lat, lng) : null);
-    });
-  });
-}
-
-async function findPosition(maps: Maps, point: CourseCard): Promise<MapLocation | null> {
-  const places = new maps.services.Places();
-  const name = point.name.replace(/\s+무장애구역$/, '');
-  const searchName = (query: string) => searchCoordinates<Place>(
-    maps,
-    (callback) => places.keywordSearch(query, callback),
-    (results) => results.find((place) => normalizeName(place.place_name) === normalizeName(query)),
-  );
-  const byName = await searchName(name);
-  if (byName) return { position: byName, approximate: false };
-  if (!point.address) return null;
-
-  const byAddress = /\d/.test(point.address)
-    ? await searchCoordinates<Coordinates>(
-      maps,
-      (callback) => new maps.services.Geocoder().addressSearch(point.address, callback),
-      (results) => results[0],
-    )
-    : await searchName(point.address);
-  return byAddress ? { position: byAddress, approximate: true } : null;
-}
-
-export default function CourseMap({ points }: { points: CourseCard[] }) {
+export default function CourseMap({ points }: { points: RoutePoint[] }) {
   const mapRef = useRef<HTMLDivElement>(null);
-  const [approximate, setApproximate] = useState(false);
-  const [foundCount, setFoundCount] = useState<number | null>(null);
+  const [count, setCount] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!__KAKAO_MAP_JS_KEY__ || !points.length) return;
+    const container = mapRef.current;
+    if (!container || !__KAKAO_MAP_JS_KEY__ || !points.length) return;
     let cancelled = false;
     const overlays: Overlay[] = [];
-    const container = mapRef.current;
+    let closePopup: (() => void) | undefined;
 
     const showMap = async () => {
-      const maps = await loadMaps();
-      if (cancelled || !container) return;
-      const hits = await Promise.all(points.map(async (point) => ({
-        point, location: await findPosition(maps, point),
-      })));
+      const ready = await ensureKakao(__KAKAO_MAP_JS_KEY__);
       if (cancelled) return;
-      const locations = hits.flatMap(({ point, location }) => location ? [{ point, ...location }] : []);
-      setApproximate(locations.some((location) => location.approximate));
-      setFoundCount(locations.length);
-      if (!locations.length) return;
+      const maps = (window as Window & { kakao?: { maps: Maps } }).kakao?.maps;
+      if (!ready || !maps) {
+        setCount(0);
+        return;
+      }
 
-      const map = new maps.Map(container, { center: locations[0].position, level: 5 });
-      const bounds = new maps.LatLngBounds();
-      for (const { point, position } of locations) {
-        const label = document.createElement('span');
-        label.className = 'route-map-marker';
-        label.textContent = String(point.no);
-        label.title = point.name;
-        bounds.extend(position);
-        overlays.push(new maps.CustomOverlay({ map, position, content: label }));
-      }
-      if (locations.length > 1) {
-        map.setBounds(bounds);
-        if (locations.length === points.length) {
-          overlays.push(new maps.Polyline({
-            map, path: locations.map(({ position }) => position),
-            strokeColor: '#18634b', strokeWeight: 3, strokeStyle: 'shortdash',
-          }));
+      const resolvePoint = (point: RoutePoint) => new Promise<Coordinates | null>((resolve) => {
+        if (typeof point.lat === 'number' && typeof point.lng === 'number') {
+          resolve({ lat: point.lat, lng: point.lng });
+          return;
         }
+        enqueueGeocode(async () => {
+          if (cancelled) {
+            resolve(null);
+            return;
+          }
+          try {
+            resolve(await geocodePoint(point));
+          } catch {
+            resolve(null);
+          }
+        });
+      });
+      const locations = await Promise.all(points.map(resolvePoint));
+      if (cancelled) return;
+      const first = locations.find((point) => point !== null);
+      if (!first) {
+        setCount(0);
+        return;
       }
+
+      const toPosition = ({ lat, lng }: Coordinates) => new maps.LatLng(lat, lng);
+      const map = new maps.Map(container, { center: toPosition(first), level: 6 });
+      const popup = new maps.InfoWindow({ removable: true });
+      closePopup = () => popup.close();
+      const groups = new Map<string, HTMLElement>();
+      const bounds = new maps.LatLngBounds();
+      const segments: Position[][] = [];
+      let segment: Position[] = [];
+
+      locations.forEach((coordinates, index) => {
+        if (!coordinates) {
+          if (segment.length > 1) segments.push(segment);
+          segment = [];
+          return;
+        }
+        const point = points[index];
+        const position = toPosition(coordinates);
+        segment.push(position);
+        const key = `${coordinates.lat},${coordinates.lng}`;
+        let group = groups.get(key);
+        if (!group) {
+          group = document.createElement('div');
+          group.className = 'route-pin-group';
+          groups.set(key, group);
+          bounds.extend(position);
+          overlays.push(new maps.CustomOverlay({ map, position, content: group, clickable: true, zIndex: 10 }));
+        }
+
+        const pin = document.createElement('button');
+        pin.type = 'button';
+        pin.className = 'route-map-marker';
+        pin.textContent = String(point.no);
+        pin.setAttribute('aria-label', `${point.no}번 ${point.name} 무장애 정보`);
+        pin.addEventListener('click', () => {
+          map.panTo(position);
+          popup.setContent(popupFor(point));
+          popup.setPosition(position);
+          popup.open(map);
+        });
+        group.append(pin);
+      });
+      if (segment.length > 1) segments.push(segment);
+      if (segments.length) overlays.push(new maps.Polyline({
+        map, path: segments, strokeColor: '#18634b', strokeWeight: 3, strokeStyle: 'shortdash',
+      }));
+      if (groups.size > 1) map.setBounds(bounds);
+      setCount(locations.filter(Boolean).length);
     };
-    void showMap().catch(() => {
-      if (!cancelled) {
-        console.warn('Kakao Maps could not display the itinerary');
-        setFoundCount(0);
-      }
+
+    void showMap().catch((error: unknown) => {
+      console.warn('Kakao Maps could not display the itinerary', error instanceof Error ? error.name : '');
+      if (!cancelled) setCount(0);
     });
     return () => {
       cancelled = true;
+      closePopup?.();
       overlays.forEach((overlay) => overlay.setMap(null));
-      container?.replaceChildren();
+      container.replaceChildren();
     };
   }, [points]);
 
-  if (!__KAKAO_MAP_JS_KEY__) return null;
+  if (!__KAKAO_MAP_JS_KEY__) return <p>아래 장소별 지도 링크에서 위치를 확인할 수 있어요.</p>;
 
   return (
     <>
-      <div ref={mapRef} className="route-map" aria-label="방문 순서 지도" aria-hidden={!foundCount} hidden={foundCount === 0} />
-      {foundCount !== null && foundCount < points.length && (
-        <p role="status">지도에 표시된 방문지 {foundCount}/{points.length}곳. 아래 장소별 지도 링크를 이용할 수 있어요.</p>
-      )}
-      {approximate && <p>일부 핀은 도로명 주소 또는 탐방로 출발점 기준입니다.</p>}
-      {foundCount !== null && foundCount > 1 && foundCount === points.length && (
-        <p>점선은 방문 순서를 나타냅니다.</p>
-      )}
+      <div ref={mapRef} className="route-map" aria-label="방문 순서 지도" aria-hidden={!count} hidden={count === 0} />
+      <p role="status">
+        {count === null ? '장소 좌표를 확인하는 중이에요.'
+          : count === 0 ? '지도에 표시할 좌표를 찾지 못했어요. 아래 링크에서 장소를 확인할 수 있어요.'
+          : `${points.length}곳 중 ${count}곳을 지도에 표시했어요. 핀을 누르면 무장애 정보를 볼 수 있어요.`}
+      </p>
     </>
   );
 }
