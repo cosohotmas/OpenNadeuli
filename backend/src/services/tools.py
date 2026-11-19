@@ -67,7 +67,7 @@ def call_tool(name: str, args: dict, settings: Optional[dict] = None) -> dict:
         return {"tool": spec_map[name], "args": args, "source": "live",
                 "items": live.get("items", []), "excluded": [], "note": live.get("note", "")}
 
-    from .data.sample_data import filter_spots, filter_trails, filter_hotels, filter_restaurants
+    from ..data.sample_data import filter_spots, filter_trails, filter_hotels, filter_restaurants
 
     if name == "searchOpenTouristSpots":
         filtered = filter_spots(args)

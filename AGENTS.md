@@ -31,10 +31,10 @@ AI 코딩 에이전트(Claude Code, Codex, Cursor 등)가 이 저장소에서 �
 | 공공 데이터 | 한국관광공사 열린관광지(KorWithService2), 소상공인 상권정보(sdsc2) | `backend/src/services/tools.py` |
 | 공공 데이터 | 한국관광공사 열린관광지(KorWithService2), 소상공인 상권정보(sdsc2) | `backend/src/services/tools.py` |
 | 환경변수 | `PORT`, `CORS_ORIGINS`, `KorWithS_End_Point`, `KorWithS_Key`, `SdsC_End_Point`, `SdsC_Key` (.env.example 5줄 추가됨) | `app.py`, `backend/src/api/routes.py` |
-- 프런트: React 18 + TypeScript + Vite, `http://127.0.0.1:8899` 백엔드 직접 호출 (Vite 프록시 미사용, `VITE_*` 환경변수 미사용)
+- 프런트: React 18 + TypeScript + Vite. 로컬 개발·프리뷰는 Vite가 `/api` 요청을 FastAPI로 전달
 - 백엔드: FastAPI + uvicorn, 포트 8899, `/api/health`, `/api/course`, `/api/settings` 엔드포인트
 - 실행: 백엔드 `python3 -m uvicorn app:app --host 127.0.0.1 --port 8899`, 프런트 `cd frontend && npm run dev` (포트 5176)
-- 배포: `vercel.json` (FastAPI 함수 `/api/(.*)` → `/app.py`, 정적 파일 `/frontend/dist/index.html`)
+- 배포: `vercel.json` (FastAPI 함수 `/api/:path*` → `api/index.py`, 엘리스 최종본 `frontend/dist/elice-final.html`)
 
 ## 기술 스택
 
@@ -48,7 +48,7 @@ AI 코딩 에이전트(Claude Code, Codex, Cursor 등)가 이 저장소에서 �
 | 설정 저장 | 서버 메모리(`os.environ`)만, 파일 미저장, 재시작 시 소멸 | `backend/src/services/tools.py` (`save_settings`) |
 | 도구 목록 | `searchOpenTouristSpots`, `searchAccessibleTrails`, `searchStayHotels`, `searchStepFreeRestaurants` | `backend/src/services/tools.py` (`TOOL_SPECS`) |
 | 지도 | 루트 HTML: 네이버 지도 검색(mapUrl) + 카카오 동선 요약, React 프런트 미도입 | 루트 `index.html`, `frontend/src/App.tsx` |
-| API 키 (프런트) | `VITE_*` 미사용, `http://127.0.0.1:8899` 하드코딩 | `frontend/src/lib/api.ts` (알려진 문제: 배포 시 실패) |
+| API 경로 (React 프런트) | 같은 origin의 `/api` | `frontend/src/lib/api.ts` |
 
 ## 보안 원칙 (코드 읽기 기준)
 
@@ -109,7 +109,9 @@ CONVERSATION_LOG.md     작업 기록
 - `main` 브랜치에 force push(`--force`, `-f`)를 하지 않습니다.
 - `git reset --hard`, `git clean -f` 등 되돌리기 힘든 명령은 임의로 실행하지 않고, 실행 전에 먼저 사용자에게 확인받습니다.
 - 커밋 메시지에 AI 생성 흔적(`Co-Authored-By: Claude` 등)을 넣지 않습니다.
-- PR 머지는 사용자가 직접 합니다. 에이전트는 PR 생성·보고까지만 수행합니다.
+- 배포 변경은 **작업 브랜치에 커밋 → GitHub에 푸시 → `main` 대상 PR 생성 → Vercel 프리뷰 확인 → 사용자 머지** 순서로 진행합니다. 에이전트는 PR과 프리뷰 검증 결과를 보고하며, 사용자가 직접 머지합니다.
+- GitHub 연결 프로젝트의 운영 배포는 `main` 머지 후 Vercel 자동 배포를 사용합니다. 로컬 변경을 `vercel deploy --prod`로 운영에 직접 배포하거나 운영 도메인을 수동 전환하지 않습니다.
+- PR의 Vercel 프리뷰에서 홈페이지, `GET /api/health`, 샘플 코스 요청과 변경 기능을 확인한 뒤 머지를 요청합니다. 배포 또는 접근 문제가 있으면 PR에 상태를 남깁니다.
 - 머지된 브랜치는 자동 폐기합니다(원격 `git push origin --delete`, 로컬 `git branch -d`). 남는 브랜치는 `main` 하나.
 
 ## 보안 원칙 (예외 없음)
@@ -120,7 +122,6 @@ CONVERSATION_LOG.md     작업 기록
 - 비밀값을 문서·로그에 적지 않습니다(값 자체를 옮기지 않습니다).
 - 이 저장소를 GitHub에 올릴 때는 `.env`를 반드시 제외하고, `.env.example`만 포함합니다.
 - API 키는 **서버 메모리(`os.environ`)에만 저장**되며, 파일에는 저장되지 않습니다. 서버 재시작 시 소멸합니다(Vercel 서버리스 환경에서 유지 여부는 확인 불가).
-- 프런트(`frontend/src/lib/api.ts`)는 `VITE_*` 환경변수를 사용하지 않고 `http://127.0.0.1:8899`를 하드코딩하고 있습니다. 이는 **배포 시 API 호출 실패 결함**이며, 문서 수정 PR에서는 코드를 수정하지 않고 PR 설명에 별도 제안으로 기록합니다(상대경로 `/api` 안 vs `VITE_API_BASE` 환경변수안 비교).
 
 ## 로깅 원칙
 
@@ -130,11 +131,10 @@ CONVERSATION_LOG.md     작업 기록
 ## 배포
 
 - **Vercel 배포**: `vercel.json` 설정 포함. GitHub 저장소 연결 후 Vercel에서 자동 배포.
-- 배포 구조: FastAPI 함수(`/api/(.*)` → `/app.py`) + 정적 파일(`/frontend/dist/index.html` SPA 폴백)
+- 배포 구조는 FastAPI 함수(`/api/:path*` → `api/index.py`)와 엘리스 최종본(`frontend/dist/elice-final.html`)입니다.
 - `.env`는 `.gitignore`로 제외. 실제 API 키는 Vercel 프로젝트 설정의 Environment Variables에 등록.
-- 프런트(`frontend/src/lib/api.ts`)는 `http://127.0.0.1:8899`를 하드코딩하고 있어, Vercel 배포 시 모든 API 호출이 실패합니다. 배포 전 `VITE_API_BASE` 환경변수 도입 또는 상대경로 `/api` 사용으로 수정 필요(문서 수정 PR에서는 코드 미수정, PR 설명에 제안만 기록).
 - 배포 도메인을 `CORS_ORIGINS` 환경변수에 추가해야 프런트·백엔드 간 CORS가 정상 동작합니다.
-- Kakao JS SDK 도메인에 개발 포트와 Vercel 도메인을 등록해야 지도 기능이 정상 동작합니다(지도는 현재 React 프런트 미구현, 루트 HTML에만 참조됨).
+- 카카오맵은 빌드 환경의 `OPENNADEULI_MAPKAKAO`에서 도메인 제한이 적용된 JavaScript SDK 키를 사용합니다. 다른 공공 API 키는 서버 환경에 둡니다.
 
 ## 완료 기준
 

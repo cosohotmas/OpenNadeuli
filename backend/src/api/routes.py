@@ -10,12 +10,12 @@ api/routes.py — FastAPI 라우트
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Literal, Optional
 
 import os
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
 
 from ..services.agent import get_agent, OutingAgent
 from ..services.tools import load_settings, save_settings
@@ -23,9 +23,29 @@ from ..services.tools import load_settings, save_settings
 router = APIRouter()
 
 
+class ScheduleRange(BaseModel):
+    s: int = Field(default=0, ge=0, le=23)
+    e: int = Field(default=24, ge=1, le=24)
+
+    @model_validator(mode="after")
+    def check_order(self):
+        if self.s >= self.e:
+            raise ValueError("Schedule start must be before end")
+        return self
+
+
+class CourseSchedule(BaseModel):
+    tripType: Literal["day", "overnight"] = "day"
+    d1: ScheduleRange = Field(default_factory=ScheduleRange)
+    d2: ScheduleRange = Field(default_factory=ScheduleRange)
+    meal: bool = True
+    cafe: bool = True
+    hotel: bool = False
+
+
 class CourseRequest(BaseModel):
     text: str
-    schedule: Optional[Dict[str, Any]] = None
+    schedule: Optional[CourseSchedule] = None
 
 
 class SettingsRequest(BaseModel):
@@ -72,7 +92,7 @@ async def course(req: CourseRequest) -> Dict[str, Any]:
         "onAnswer": on_answer,
     }
 
-    await agent.handle(req.text, handlers, {"schedule": req.schedule})
+    await agent.handle(req.text, handlers, {"schedule": req.schedule.model_dump() if req.schedule else None})
 
     answer_event = next((e for e in events if e["type"] == "answer"), None)
     return {
@@ -82,17 +102,22 @@ async def course(req: CourseRequest) -> Dict[str, Any]:
     }
 
 
+def _require_settings_enabled() -> None:
+    if os.environ.get("ENABLE_SETTINGS", "").lower() not in {"1", "true", "yes"}:
+        raise HTTPException(status_code=403, detail="Settings are disabled")
+
+
 @router.get("/api/settings")
 async def get_settings() -> Dict[str, Any]:
     """현재 설정 조회."""
+    _require_settings_enabled()
     return load_settings()
 
 
 @router.post("/api/settings")
 async def post_settings(req: SettingsRequest) -> Dict[str, Any]:
     """설정 저장. ENABLE_SETTINGS 가 true일 때만 허용한다."""
-    if os.environ.get("ENABLE_SETTINGS", "").lower() not in {"1", "true", "yes"}:
-        raise HTTPException(status_code=403, detail="Settings are disabled")
+    _require_settings_enabled()
     current = load_settings()
     if req.useLive is not None:
         current["useLive"] = req.useLive

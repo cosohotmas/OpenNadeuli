@@ -72,7 +72,7 @@ node serve.mjs 8899   # 포트 8899 (백엔드와 포트 충돌 가능)
 
 > ⚠️ **포트 충돌 주의**: 루트 `serve.mjs`와 백엔드 `app.py` 모두 포트 8899를 기본으로 사용하므로, 동시 기동 시 포트 충돌이 발생할 수 있습니다.
 
-> ⚠️ **CORS 설정**: 프런트가 백엔드를 직접 호출하므로, 브라우저에서 프런트 포트(5176, 5190 등)를 `CORS_ORIGINS` 환경변수에 추가해야 정상 동작합니다. 현재 `app.py`에서 `CORS_ORIGINS`를 읽지만 `.env.example`에는 미등재되어 있습니다.
+> React 프런트는 같은 origin의 `/api`를 호출합니다. 로컬 Vite 개발·프리뷰 서버는 이 요청을 8899 포트의 FastAPI로 전달합니다.
 
 ## 3. 에이전트 동작 구조
 
@@ -95,7 +95,7 @@ node serve.mjs 8899   # 포트 8899 (백엔드와 포트 충돌 가능)
    └─ 응답 JSON: { "events": [...], "answer": { ... }, "source": "sample" }
 ```
 
-프런트(`frontend/src/App.tsx`, `frontend/src/lib/api.ts`)는 `http://127.0.0.1:8899/api/course`로 `POST` 요청을 보내고, 응답(`answer.intro`, `answer.cards`, `answer.followups`)을 채팅 화면에 렌더링합니다.
+프런트(`frontend/src/App.tsx`, `frontend/src/lib/api.ts`)는 `/api/course`로 `POST` 요청을 보내고, 응답(`answer.intro`, `answer.cards`, `answer.followups`)을 채팅 화면에 렌더링합니다.
 
 각 단계는 이벤트 핸들러(`onStatus / onTool / onToolDone / onNote / onAnswer`)로 스트리밍되어 UI 타임라인에 표시됩니다.
 
@@ -105,9 +105,8 @@ node serve.mjs 8899   # 포트 8899 (백엔드와 포트 충돌 가능)
 
 ### 설정 저장 방식
 
-- 프런트(`frontend/src/lib/api.ts`)는 `VITE_*` 환경변수를 사용하지 않고 `http://127.0.0.1:8899`를 하드코딩하고 있습니다(알려진 문제: 배포 시 API 호출 실패).
 - API 키는 `POST /api/settings`로 백엔드에 전달되며, `backend/src/services/tools.py`의 `save_settings()`가 `os.environ`에만 저장합니다. **파일에는 저장되지 않으며, 서버 재시작 시 소멸합니다.**
-- `ENABLE_SETTINGS` 환경변수가 미설정 시 `POST /api/settings`는 403을 반환합니다.
+- `ENABLE_SETTINGS`가 비활성 상태이면 설정 조회와 저장이 모두 403을 반환합니다. 공개 환경에서는 비활성 상태를 유지합니다.
 
 ### 라이브 API 호출 경로
 
@@ -257,10 +256,10 @@ docs/adr/               (없음 — ADR 작성 필요 시 작성)
 .gitignore              .env, node_modules, dist 등 제외
 vercel.json             Vercel 배포 설정 (FastAPI 함수 + 정적 파일)
 - **Vercel 배포**: `vercel.json` 설정 포함. GitHub 저장소 연결 후 Vercel에서 자동 배포.
-- 배포 구조: FastAPI 함수(`/api/(.*)` → `/app.py`) + 정적 파일(`/frontend/dist/index.html` SPA 폴백)
+- 배포 구조: FastAPI 함수(`/api/:path*` → `api/index.py`)와 Vite 정적 파일(`frontend/dist`)
 - `.env`는 `.gitignore`로 제외. 실제 API 키는 Vercel 프로젝트 설정의 Environment Variables에 등록.
-- 프런트(`frontend/src/lib/api.ts`)는 `http://127.0.0.1:8899`를 하드코딩하고 있어, Vercel 배포 시 모든 API 호출이 실패합니다. 배포 전 `VITE_API_BASE` 환경변수 도입 또는 상대경로 `/api` 사용으로 수정 필요(문서 수정 PR에서는 코드 미수정, PR 설명에 제안만 기록).
-- 배포 도메인을 `CORS_ORIGINS` 환경변수에 추가해야 프런트·백엔드 간 CORS가 정상 동작합니다.
+- 운영 첫 화면은 사용자가 확정한 엘리스 최종본(`frontend/elice-final.html`)입니다. 내장 샘플로 브라우저에서 코스를 조립하며, 같은 도메인에 FastAPI도 함께 배포됩니다.
+- 다른 origin에서 API를 직접 호출하는 경우 해당 origin을 `CORS_ORIGINS`에 설정합니다.
 - Kakao JS SDK 도메인에 개발 포트와 Vercel 도메인을 등록해야 지도 기능이 정상 동작합니다(지도는 현재 React 프런트 미구현, 루트 HTML에만 참조됨).
 
 README.md               개요·실행법 (사람 독자)
@@ -274,18 +273,19 @@ CONVERSATION_LOG.md     작업 기록
 ## 7. 주의
 
 - 내장 데이터(장소명·주소·시설 정보)는 **시연용 가상 데이터**입니다. 실제 방문 전
-  각 지자체·시설 공식 정보를 확인하세요. **루트 앱은 장소 링크에 네이버 지도 검색을 사용하고, 동선 요약·지도에는 카카오를 함께 사용합니다.** React 프런트에는 지도·지도 링크가 없습니다.
-- 프런트(`frontend/src/lib/api.ts`)는 `http://127.0.0.1:8899`로 백엔드를 직접 호출합니다. API 키와 사용자 입력은 React 프런트·백엔드 경로에서 클라이언트 쪽에 노출되지 않습니다. 루트 앱(localStorage)은 서브셋이므로 serve.mjs 프록시로 키를 전송하는지 여부는 코드 확인 전까지 미확정입니다.
-- 프런트(`frontend/src/lib/api.ts`)는 `http://127.0.0.1:8899`를 하드코딩하고 있어, 배포 시 모든 API 호출이 실패합니다(`VITE_*` 환경변수 미사용).
+  각 지자체·시설 공식 정보를 확인하세요. **루트 앱은 장소 링크에 네이버 지도 검색을 사용하고, 동선 요약·지도에는 카카오를 함께 사용합니다.** React의 장소별 링크는 네이버 지도를 엽니다. 전체 동선 지도는 빌드 환경의 `OPENNADEULI_MAPKAKAO`에 카카오 **JavaScript 키**가 있고 현재 도메인이 카카오에 등록되어 있을 때 표시합니다.
+- React 프런트는 같은 origin의 `/api`로 코스 요청을 보냅니다.
 
 ## 8. 현재 검증 상태
 
 | 항목 | 결과 | 비고 |
 |------|------|------|
 | 백엔드 API (`GET /api/health`, `POST /api/course`) | 검증됨 | curl/TestClient로 200 + `answer` 구조 확인 |
-| 백엔드 API (`POST /api/settings` 403 제어) | 검증됨 | `ENABLE_SETTINGS` 미설정 시 403 |
+| 백엔드 API (`POST /api/settings`) | 로컬 검증 | `ENABLE_SETTINGS` 빈 값에서 403, `true`에서 200. Vercel 인스턴스 간 설정 유지 여부는 미검증 |
+| Vercel 프리뷰 HTTP | 검증됨 | 홈페이지·JS·헬스 체크·코스 요청 200, 설정 조회·저장 403 |
 | 프런트 빌드 (`npm run build`) | 검증됨 | `tsc && vite build` 성공 |
-| 프런트 정적 서빙 | 부분 검증 | python `http.server`는 정상, `vite preview`는 이 환경에서 무응답 (원인 미상) |
+| 프런트 정적 서빙 및 API 연동 | 로컬 검증 | Vite 프리뷰 5197 포트에서 브라우저가 코스 응답을 받아 추천 카드를 표시함 |
+| CORS preflight | 로컬 검증 | 허용 origin은 200과 `Access-Control-Allow-Origin` 반환. 허용 목록 밖 origin은 400이며 해당 헤더 없음. 인수인계에 기록된 동작은 로컬에서 재현되지 않았으며, 당시 발생 원인은 미확인 |
 
 
 ## 정보 출처와 라이선스
