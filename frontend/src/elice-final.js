@@ -178,7 +178,12 @@ function newAgentBubble() {
       if (body) body.appendChild(note); else timeline.appendChild(note);
       autoscroll();
     },
-    onAnswer(answer) { renderAnswer(content, chips, answer); autoscroll(); },
+    onAnswer(answer) {
+      renderAnswer(content, chips, answer);
+      const map = content.querySelector(".route-section");
+      if (map) requestAnimationFrame(() => map.scrollIntoView({ block: "start" }));
+      else autoscroll();
+    },
   };
   return { bubble: m, handlers };
 }
@@ -219,14 +224,13 @@ function renderAnswer(content, chips, answer) {
     content.appendChild(row);
   }
 
+  const focusVisit = answer.route?.points?.length ? renderRouteSection(content, answer) : null;
+
   if (answer.cards?.length) {
     const rail = el("div", "course");
-    answer.cards.forEach((c) => rail.appendChild(renderCard(c)));
+    answer.cards.forEach((c) => rail.appendChild(renderCard(c, focusVisit)));
     content.appendChild(rail);
   }
-
-  /* 카드 하단: 전체 동선 요약 리스트 + 인라인 지도 (초대장과 같은 route 데이터) */
-  if (answer.route?.points?.length) renderRouteSection(content, answer);
 
   if (answer.summary?.length) {
     const sum = el("div", "summary");
@@ -245,7 +249,7 @@ function renderAnswer(content, chips, answer) {
   renderChips(chips, answer.followups || []);
 }
 
-function renderCard(c) {
+function renderCard(c, focusVisit) {
   const card = el("article", "card");
   card.innerHTML = `
     <div class="card-rail">
@@ -266,6 +270,10 @@ function renderCard(c) {
       <div class="card-tip">💡 ${esc(c.tip)}</div>
       <div class="card-links"><a href="${mapUrl(c.mapQuery)}" target="_blank" rel="noopener">🗺️ 지도에서 보기</a></div>
     </div>`;
+  card.querySelector(".card-links a").addEventListener("click", (event) => {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    if (focusVisit?.(c.no)) event.preventDefault();
+  });
   return card;
 }
 
@@ -279,26 +287,9 @@ const mapUrl = (q) => `https://map.naver.com/p/search/${encodeURIComponent(q)}`;
 
 /* ==================== 전체 동선 요약 + 인라인 지도 (카카오맵) ==================== */
 
-/** [📋 이번 나들이 전체 동선 요약] 섹션: 지도 + 요약 리스트 (초대장과 같은 route 데이터) */
+/** 전체 동선 지도와 상세 카드의 방문 번호를 연결한다. */
 function renderRouteSection(content, answer) {
   const pts = answer.route.points;
-  const resolved = new Array(pts.length).fill(null);   /* 지오코딩으로 확정된 좌표(카카오맵 링크 계산용) */
-  /** 카카오맵 웹 링크 — 공식 지도 URL 규격(/web/guide 지도 URL): 좌표 순서는 반드시 위도,경도 */
-  const kakaoLinkFor = (i) => {
-    const p = pts[i];
-    const c = resolved[i];
-    return c
-      ? `https://map.kakao.com/link/map/${encodeURIComponent(p.name)},${c.lat},${c.lng}`
-      : `https://map.kakao.com/link/search/${encodeURIComponent(p.name || p.query)}`;
-  };
-  /** 카카오맵 길찾기 링크 — /link/to/이름,위도,경도 (해당 장소를 도착지로 설정) */
-  const kakaoRouteFor = (i) => {
-    const p = pts[i];
-    const c = resolved[i];
-    return c
-      ? `https://map.kakao.com/link/to/${encodeURIComponent(p.name)},${c.lat},${c.lng}`
-      : `https://map.kakao.com/link/search/${encodeURIComponent(p.name || p.query)}`;
-  };
   const sec = el("section", "route-section");
 
   const head = el("div", "route-head");
@@ -319,44 +310,12 @@ function renderRouteSection(content, answer) {
   mapWrap.appendChild(mapHint);
   sec.appendChild(mapWrap);
 
-  /* 요약 리스트 (모달을 열지 않아도 바로 보임) — 각 행에 카카오맵 웹 바로가기 버튼 */
-  const list = el("ol", "route-list");
-  const rowEls = pts.map((p, i) => {
-    const li = el("li", "route-row");
-    li.innerHTML = `
-      <span class="route-no">${p.no}</span>
-      <span class="route-phase">${esc(p.phase.includes(p.time) ? p.phase : `${p.time} ${p.phase}`)}</span>
-      <span class="route-name">${esc(p.emoji)} ${esc(p.name)}</span>
-      <span class="route-addr">${esc(p.address || p.query)}</span>
-      <span class="route-barrier">${p.barrier.map((b) => `<i>${esc(b)}</i>`).join("")}</span>`;
-    const links = el("span", "route-links");
-    const mapLink = el("button", "route-maplink", "🗺️ 지도 보기");
-    mapLink.type = "button";
-    mapLink.title = "카카오맵 웹에서 이 장소 바로 보기 (새 창)";
-    mapLink.addEventListener("click", (ev) => {
-      ev.stopPropagation();   /* 행 전체 클릭(지도 포커스)과 분리 */
-      window.open(kakaoLinkFor(i), "_blank", "noopener");
-    });
-    const routeLink = el("button", "route-maplink", "🧭 길찾기");
-    routeLink.type = "button";
-    routeLink.title = "카카오맵 길찾기 — 이 장소를 도착지로 설정 (새 창)";
-    routeLink.addEventListener("click", (ev) => {
-      ev.stopPropagation();
-      window.open(kakaoRouteFor(i), "_blank", "noopener");
-    });
-    links.append(mapLink, routeLink);
-    li.appendChild(links);
-    list.appendChild(li);
-    return li;
-  });
-  sec.appendChild(list);
   content.appendChild(sec);
 
-  /* 지도 초기화 — 실패 사유별 진단·안내 + 재시도 버튼 + ⚙️ 설정 저장 시 즉시 재시도(routeMapRetries) */
   let mapReady = false;
   let initializing = false;
   const placed = new Array(pts.length).fill(null);   /* 방문 순서 인덱스 → 좌표 */
-  let focusFn = null;   /* 지도 포커스(이동+말풍선) — 지도 실패 시 카카오맵 웹 링크로 폴백 */
+  const visitActions = new Map();
 
   const setHint = (msg, withRetry) => {
     mapHint.style.display = "";
@@ -383,21 +342,21 @@ function renderRouteSection(content, answer) {
     }
     const key = __KAKAO_MAP_JS_KEY__;
     if (!key) {
-      failMap("🗺️ 동선 지도를 사용할 수 없어요. 아래 장소별 지도 링크를 이용해 주세요.", false);
+      failMap("🗺️ 동선 지도를 사용할 수 없어요. 아래 상세 카드의 지도 링크를 이용해 주세요.", false);
       return;
     }
     initializing = true;
     ensureKakao(key).then((ok) => {
       if (mapReady || !sec.isConnected) return;
       if (!ok) {
-        failMap("🗺️ 카카오맵을 불러오지 못했어요. 아래 장소별 지도 링크를 이용해 주세요.");
+        failMap("🗺️ 카카오맵을 불러오지 못했어요. 아래 상세 카드의 지도 링크를 이용해 주세요.");
         return;
       }
       let map = null;
       try {
         map = new kakao.maps.Map(mapDiv, { center: new kakao.maps.LatLng(36.4, 127.9), level: 13 });
       } catch (e) {
-        failMap("🗺️ 카카오맵을 표시하지 못했어요. 아래 장소별 지도 링크를 이용해 주세요.");
+        failMap("🗺️ 카카오맵을 표시하지 못했어요. 아래 상세 카드의 지도 링크를 이용해 주세요.");
         return;
       }
       mapReady = true;
@@ -420,6 +379,7 @@ function renderRouteSection(content, answer) {
         </div>`;
 
       /* 방문 순서대로 폴리라인 갱신 + 배치된 핀 기준 화면 맞춤 */
+      let focused = false;
       const redraw = () => {
         const cs = placed.filter(Boolean);
         const segments = [];
@@ -433,7 +393,7 @@ function renderRouteSection(content, answer) {
         }
         if (segment.length > 1) segments.push(segment);
         line.setPath(segments);
-        if (!cs.length) return;
+        if (!cs.length || focused) return;
         if (cs.every((c) => c.lat === cs[0].lat && c.lng === cs[0].lng)) {
           map.setCenter(new kakao.maps.LatLng(cs[0].lat, cs[0].lng));
           map.setLevel(8);
@@ -444,26 +404,21 @@ function renderRouteSection(content, answer) {
         map.setBounds(bounds);
       };
 
-      /* 행·핀 공용 포커스: 지도 이동 + 말풍선 (핀 없으면 카카오맵 웹 링크 폴백) */
-      const focus = (i) => {
-        list.querySelectorAll(".route-row.active").forEach((x) => x.classList.remove("active"));
-        rowEls[i].classList.add("active");
-        const c = placed[i];
-        if (!c) { window.open(kakaoLinkFor(i), "_blank", "noopener"); return; }
-        const pos = new kakao.maps.LatLng(c.lat, c.lng);
-        map.panTo(pos);
+      const focus = (i, position) => {
+        focused = true;
+        map.panTo(position);
         infoWin.setContent(popupHtml(pts[i]));
-        infoWin.setPosition(pos);
+        infoWin.setPosition(position);
         infoWin.open(map);
       };
 
       const pinGroups = new Map();
       const place = (i, c) => {
+        const position = new kakao.maps.LatLng(c.lat, c.lng);
         const key = `${c.lat},${c.lng}`;
         let group = pinGroups.get(key);
         if (!group) {
           group = el("div", "route-pin-group");
-          const position = new kakao.maps.LatLng(c.lat, c.lng);
           new kakao.maps.CustomOverlay({ map, position, content: group, clickable: true, yAnchor: 1, zIndex: 10 });
           pinGroups.set(key, group);
         }
@@ -471,33 +426,35 @@ function renderRouteSection(content, answer) {
         pin.type = "button";
         pin.setAttribute("aria-label", `${pts[i].no}번 ${pts[i].name} 무장애 정보`);
         pin.appendChild(el("span", "", String(pts[i].no)));
-        pin.addEventListener("click", () => focus(i));
+        pin.addEventListener("click", () => focus(i, position));
+        visitActions.set(pts[i].no, () => {
+          pin.focus({ preventScroll: true });
+          focus(i, position);
+        });
         group.appendChild(pin);
         placed[i] = c;
       };
-      focusFn = focus;
 
       let remaining = pts.length;
       const finish = (i, hit) => {
         if (!sec.isConnected) return;
         if (hit) {
-          resolved[i] = hit;
           place(i, hit);
           redraw();
-        } else rowEls[i].classList.add("unmapped");
+        }
         remaining -= 1;
         if (remaining) return;
         const count = placed.filter(Boolean).length;
         const missing = pts.length - count;
-        if (!count) failMap("🗺️ 좌표를 찾지 못했어요. 아래 장소별 지도 링크를 이용해 주세요.", false);
+        if (!count) failMap("🗺️ 좌표를 찾지 못했어요. 아래 상세 카드의 지도 링크를 이용해 주세요.", false);
         else setHint(missing
           ? `🗺️ ${missing}곳의 좌표를 찾지 못했어요. 점선은 좌표가 있는 연속 방문 순서를 표시해요.`
           : "🗺️ 점선은 방문 순서를 표시해요. 핀을 누르면 무장애 정보를 볼 수 있어요.", false);
       };
 
       pts.forEach((point, i) => {
-        if (resolved[i] || (point.lat && point.lng)) {
-          finish(i, resolved[i] || { lat: point.lat, lng: point.lng });
+        if (point.lat && point.lng) {
+          finish(i, { lat: point.lat, lng: point.lng });
         } else enqueueGeocode(async () => {
           if (!sec.isConnected) return;
           try {
@@ -510,15 +467,14 @@ function renderRouteSection(content, answer) {
     }).finally(() => { initializing = false; });
   }
 
-  /* 리스트 행 클릭 → 지도 이동 + 말풍선 (지도 실패 시 카카오맵 웹 링크) */
-  rowEls.forEach((li, i) => li.addEventListener("click", () => {
-    list.querySelectorAll(".route-row.active").forEach((x) => x.classList.remove("active"));
-    li.classList.add("active");
-    if (focusFn && placed[i]) focusFn(i);
-    else window.open(kakaoLinkFor(i), "_blank", "noopener");
-  }));
-
   initMap();
+  return (no) => {
+    const focus = visitActions.get(no);
+    if (!focus) return false;
+    sec.scrollIntoView({ block: "start" });
+    focus();
+    return true;
+  };
 }
 
 function renderChips(container, items) {

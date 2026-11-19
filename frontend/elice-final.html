@@ -764,9 +764,10 @@ body {
   .tb-summary { font-size: 15px; }
 }
 
-/* ---------- 전체 동선 요약 + 인라인 지도 ---------- */
+/* ---------- 전체 동선 지도 ---------- */
 .route-section {
-  margin-top: 14px;
+  margin: 14px 0;
+  scroll-margin-block-start: 10px;
   padding: 14px 16px 16px;
   background: var(--brand-softer);
   border: 1px solid var(--line);
@@ -798,27 +799,6 @@ body {
 }
 .route-map-wrap.route-map-off .route-map { display: none; }
 .route-map-wrap.route-map-off .route-map-hint { position: static; margin: 8px 2px; }
-
-/* 행별 카카오맵 바로가기 (지도 보기 + 길찾기) */
-.route-links {
-  grid-column: 3;
-  justify-self: end;
-  align-self: center;
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
-.route-maplink {
-  border: 1px solid var(--brand);
-  background: var(--panel);
-  color: var(--brand-dark);
-  border-radius: 8px;
-  font-size: 11px;
-  padding: 4px 9px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.route-maplink:hover { background: var(--brand-soft); }
 
 /* 번호 핀 (카카오맵 커스텀 오버레이) */
 .route-pin-group { display: flex; gap: 7px; padding: 6px; }
@@ -853,50 +833,8 @@ body {
   margin: 1px 3px 1px 0;
 }
 
-/* 요약 리스트 */
-.route-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-.route-row {
-  display: grid;
-  grid-template-columns: 24px 92px 1fr;
-  gap: 3px 10px;
-  align-items: center;
-  padding: 8px 10px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
-}
-.route-row:hover, .route-row.active { border-color: var(--brand); background: #ffffff; }
-.route-row.unmapped { opacity: 0.75; }
-.route-no {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: var(--brand);
-  color: #fff;
-  display: grid;
-  place-items: center;
-  font-weight: 700;
-  font-size: 12px;
-}
-.route-phase { font-size: 11.5px; color: var(--brand); font-weight: 600; }
-.route-name { font-weight: 600; font-size: 13.5px; color: var(--ink); }
-.route-addr { grid-column: 2 / -1; font-size: 11.5px; color: var(--muted); }
-.route-barrier { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: 4px; }
-.route-barrier i {
-  font-style: normal;
-  font-size: 10.5px;
-  background: var(--brand-soft);
-  color: var(--brand-dark);
-  border-radius: 6px;
-  padding: 1px 7px;
-}
 @media (max-width: 720px) {
   .route-map { height: 240px; }
-  .route-row { grid-template-columns: 24px 1fr; }
-  .route-phase { grid-column: 2; }
-  .route-name { grid-column: 2; }
 }
 .route-retry {
   border: 1px solid var(--brand);

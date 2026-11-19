@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import type { RoutePoint } from '../types';
 import { enqueueGeocode, ensureKakao, geocodePoint, type Coordinates } from '../lib/kakao-route.js';
 
@@ -37,15 +37,30 @@ function popupFor(point: RoutePoint) {
   return content;
 }
 
-export default function CourseMap({ points }: { points: RoutePoint[] }) {
+export interface CourseMapHandle {
+  focusVisit(no: number): boolean;
+}
+
+const CourseMap = forwardRef<CourseMapHandle, { points: RoutePoint[] }>(function CourseMap({ points }, ref) {
   const mapRef = useRef<HTMLDivElement>(null);
   const [count, setCount] = useState<number | null>(null);
+  const focusByNumber = useRef(new Map<number, () => void>());
+  useImperativeHandle(ref, () => ({
+    focusVisit(no) {
+      const focus = focusByNumber.current.get(no);
+      if (!focus) return false;
+      mapRef.current?.closest('section')?.scrollIntoView({ block: 'start' });
+      focus();
+      return true;
+    },
+  }), []);
 
   useEffect(() => {
     const container = mapRef.current;
     if (!container || !__KAKAO_MAP_JS_KEY__ || !points.length) return;
     let cancelled = false;
     const overlays: Overlay[] = [];
+    const visitActions = focusByNumber.current;
     let closePopup: (() => void) | undefined;
 
     const showMap = async () => {
@@ -115,11 +130,16 @@ export default function CourseMap({ points }: { points: RoutePoint[] }) {
         pin.className = 'route-map-marker';
         pin.textContent = String(point.no);
         pin.setAttribute('aria-label', `${point.no}번 ${point.name} 무장애 정보`);
-        pin.addEventListener('click', () => {
+        const showPopup = () => {
           map.panTo(position);
           popup.setContent(popupFor(point));
           popup.setPosition(position);
           popup.open(map);
+        };
+        pin.addEventListener('click', showPopup);
+        visitActions.set(point.no, () => {
+          pin.focus({ preventScroll: true });
+          showPopup();
         });
         group.append(pin);
       });
@@ -137,6 +157,7 @@ export default function CourseMap({ points }: { points: RoutePoint[] }) {
     });
     return () => {
       cancelled = true;
+      visitActions.clear();
       closePopup?.();
       overlays.forEach((overlay) => overlay.setMap(null));
       container.replaceChildren();
@@ -155,4 +176,6 @@ export default function CourseMap({ points }: { points: RoutePoint[] }) {
       </p>
     </>
   );
-}
+});
+
+export default CourseMap;
