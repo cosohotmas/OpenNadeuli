@@ -286,7 +286,7 @@ CONVERSATION_LOG.md     작업 기록
 | 백엔드 API (`POST /api/settings` 403 제어) | 검증됨 | `ENABLE_SETTINGS` 미설정 시 403 |
 | 프런트 빌드 (`npm run build`) | 검증됨 | `tsc && vite build` 성공 |
 | 프런트 정적 서빙 | 부분 검증 | python `http.server`는 정상, `vite preview`는 이 환경에서 무응답 (원인 미상) |
-| CORS preflight | 부분 검증 | 검증 origin(`http://127.0.0.1:5188`)에서는 `access-control-allow-origin` 반환 확인. 허용 목록 외 origin은 148b962 기준 현재 차단 확인(과거 관찰, 현재 미재현) |
+| CORS preflight | 부분 검증 | 검증 origin(`http://127.0.0.1:5188`)에서는 `access-control-allow-origin` 반환 확인. 허용 목록 외 origin은 측정 당시 로컬 코드 기준 현재 차단 확인(과거 관찰, 현재 미재현) |
 | 브라우저 렌더링 연동 | 미실행(원인: vite preview 무응답) | vite preview가 요청에 응답하지 않아 Playwright 검증 불가 (원인 미상) |
 | 프런트→백엔드 실제 호출 (브라우저 관점) | 미실행(원인: vite preview 무응답) | 브라우저 관점 실제 호출 미실행 |
 
