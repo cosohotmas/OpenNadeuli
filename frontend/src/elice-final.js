@@ -1,4 +1,5 @@
-import { regionOptions, resolveSearchRegion, revealDelay, scrollToResponse } from "./lib/search-flow.js";
+import { mountRegionPicker } from "./lib/region-picker.js";
+import { resolveSearchRegion, revealDelay, scrollToResponse, searchProgress } from "./lib/search-flow.js";
 import './card-metadata.css';
 import { cardMetadata, familyInvite, CourseApiError, requestCourse, sourceLabel, sourceLines, stationInfo, stationUseNote } from "./lib/course-client.js";
 import { enqueueGeocode, ensureKakao, geocodePoint, kakaoLinks } from "./lib/kakao-route.js";
@@ -26,6 +27,8 @@ const el = (tag, cls, text) => {
 
 let uiAgent = null;
 let busy = false;
+let activeRequest = 0;
+let retryText = "";
 let refs = {};
 
 function init({ agentInstance }) {
@@ -40,10 +43,11 @@ function init({ agentInstance }) {
     resetBtn: $("#resetBtn"),
     inviteModal: $("#inviteModal"),
     toast: $("#toast"),
-    region: $("#searchRegion"),
+    retry: $("#locationRetry"),
   };
 
-  regionOptions.forEach((region) => refs.region.add(new Option(region, region)));
+  refs.region = mountRegionPicker($("#searchRegion"), () => { refs.retry.hidden = true; });
+  refs.retry.addEventListener("click", () => { if (retryText) void submit(retryText); });
 
   /* 이벤트 */
   refs.form.addEventListener("submit", (e) => { e.preventDefault(); const t = refs.input.value.trim(); if (t) submit(t); });
@@ -78,6 +82,8 @@ function init({ agentInstance }) {
 async function submit(text) {
   if (busy) return;
   busy = true;
+  const request = ++activeRequest;
+  refs.retry.hidden = true;
   /* 전송 시 시간대 패널 자동 접기 — 답변이 화면을 가리지 않도록 */
   setExpanded(false);
   refs.input.value = "";
@@ -102,8 +108,13 @@ async function submit(text) {
     hotel: schedState.hotel,
   };
   try {
-    const location = await resolveSearchRegion(text, refs.region.value, (step) => { stage.textContent = step; });
-    stage.textContent = "관광지·편의시설 조회 및 동선 구성 중";
+    const location = await resolveSearchRegion(text, refs.region.value, (step) => { stage.textContent = step; }, (region) => {
+      if (request !== activeRequest || refs.region.value) return;
+      retryText = text;
+      refs.retry.textContent = `현재 위치 확인 · ${region}로 다시 검색`;
+      refs.retry.hidden = false;
+    });
+    stage.textContent = searchProgress(location);
     let response;
     try {
       response = await requestCourse(text, schedule, location);
@@ -112,7 +123,8 @@ async function submit(text) {
       progress.remove();
       refs.badge.textContent = "시연용 내장 샘플";
       handlers.onNote("서버에 연결하지 못해 시연용 내장 샘플을 표시해요. 실제 접근성 확인 결과는 아니에요.");
-      await uiAgent.handle(location.region ? `${location.region} ${text}` : text, {
+      const sampleRegion = location.region || (location.regionSource === "location_unavailable" ? "서울" : "");
+      await uiAgent.handle(sampleRegion ? `${sampleRegion} ${text}` : text, {
         ...handlers,
         onAnswer(answer) {
           handlers.onAnswer({
@@ -166,7 +178,8 @@ async function submit(text) {
 function setBusy(v) {
   refs.sendBtn.disabled = v;
   refs.resetBtn.disabled = v;
-  refs.region.disabled = v;
+  refs.region.setDisabled(v);
+  refs.retry.disabled = v;
   refs.input.disabled = v;
   document.querySelectorAll(".chip").forEach((c) => (c.disabled = v));
 }
@@ -643,6 +656,8 @@ function showWelcome() {
 }
 
 function resetChat() {
+  activeRequest++;
+  refs.retry.hidden = true;
   refs.chat.innerHTML = "";
   showWelcome();
   toast("대화를 새로 시작했어요.");

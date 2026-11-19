@@ -196,16 +196,20 @@ def visit_slots(hours, schedule, day):
     return sorted(slots, key=lambda slot: slot[0])
 
 
-async def public_course(text, schedule, requested_region=None, region_source=None):
+async def public_course(text, schedule, requested_region=None, region_source=None, location_status=None):
     intent = parse_intent(text)
     chosen = requested_region if requested_region in DISTRICTS else None
-    region = intent.region or chosen or default_region(intent.themes)
+    region = intent.region or chosen or ("서울" if region_source == "location_unavailable" else default_region(intent.themes))
     if intent.region:
         basis = "질문에 지정한 지역"
     elif chosen:
         basis = "현재 위치 기준" if region_source == "location" else "선택 지역 기준"
     elif region_source == "location_unavailable":
-        basis = "현재 위치 확인 불가 · 기본 지역"
+        reason = {
+            "denied": "위치 권한 거부", "timeout": "위치 확인 시간 초과",
+            "region_unknown": "좌표 수신 · 지역 판별 실패",
+        }.get(location_status, "현재 위치 확인 불가")
+        basis = f"{reason} · 기본 지역"
     else:
         basis = "기본 지역"
     region_label = f"검색 지역 · {region} ({basis})"
