@@ -1,3 +1,4 @@
+import './mobile-chat.css';
 import { mountRegionPicker } from './lib/region-picker.js';
 import { resolveSearchRegion, revealDelay, scrollToResponse, searchProgress } from './lib/search-flow.js';
 import './card-metadata.css';
@@ -86,6 +87,7 @@ const App = () => {
   const [activeDay, setActiveDay] = useState<'d1' | 'd2'>('d1');
   const [inputValue, setInputValue] = useState('');
   const [loading, setLoading] = useState(false);
+  const [quickCollapsed, setQuickCollapsed] = useState(false);
   const pickerHost = useRef<HTMLDivElement>(null);
   const picker = useRef<ReturnType<typeof mountRegionPicker> | null>(null);
   const [locationRetry, setLocationRetry] = useState<{ text: string; region: string } | null>(null);
@@ -133,6 +135,7 @@ const App = () => {
     setInputValue('');
     setToast(null);
     setLoading(true);
+    setQuickCollapsed(true);
     setLocationRetry(null);
     setPending({ id: answerId, stage: "요청 분석 중" });
 
@@ -192,6 +195,7 @@ const App = () => {
   };
 
   const resetChat = () => {
+    setQuickCollapsed(false);
     requestId.current++;
     setLocationRetry(null);
     setInputValue('');
@@ -232,8 +236,8 @@ const App = () => {
         </div>
         <div className="header-actions">
           <span className="data-badge">공공데이터 코스</span>
-          <button className="btn btn-ghost" type="button" onClick={resetChat} disabled={loading}>
-            ↺ 대화 초기화
+          <button className="btn btn-ghost reset-chat" aria-label="대화 초기화" type="button" onClick={resetChat} disabled={loading}>
+            <span aria-hidden="true">↺</span><span className="reset-chat-label"> 대화 초기화</span>
           </button>
         </div>
       </header>
@@ -372,7 +376,12 @@ const App = () => {
       <div className="composer">
         {locationRetry && <button type="button" className="btn location-retry" disabled={loading}
           onClick={() => void sendMessage(locationRetry.text)}>현재 위치 확인 · {locationRetry.region}로 다시 검색</button>}
-        <div className="quick-questions" aria-label="빠른 질문">
+        <button className="btn quick-toggle" type="button"
+          data-quick-started={messages.length > 1 ? '' : undefined}
+          data-quick-collapsed={quickCollapsed ? '' : undefined}
+          aria-controls="quickQuestions" aria-expanded={!quickCollapsed}
+          onClick={() => setQuickCollapsed(!quickCollapsed)}>추천 검색 {quickCollapsed ? '▾' : '▴'}</button>
+        <div id="quickQuestions" className="quick-questions" aria-label="빠른 질문">
           {quickQuestions.map((question) => (
             <button key={question} className="chip" type="button" disabled={loading}
               onClick={() => void sendMessage(question)}>{question}</button>

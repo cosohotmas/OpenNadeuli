@@ -847,7 +847,7 @@ body {
       </div>
       <div class="header-actions">
         <span id="dataSourceBadge" class="data-badge">내장 샘플 데이터</span>
-        <button id="resetBtn" class="btn btn-ghost" type="button" aria-label="대화 초기화">↺ 대화 초기화</button>
+        <button id="resetBtn" class="btn btn-ghost reset-chat" type="button" aria-label="대화 초기화"><span aria-hidden="true">↺</span><span class="reset-chat-label"> 대화 초기화</span></button>
       </div>
     </header>
 
@@ -856,6 +856,7 @@ body {
 
     <!-- 입력 영역 -->
     <div class="composer">
+      <button id="quickToggle" class="btn quick-toggle" type="button" aria-controls="quickChips" aria-expanded="true">추천 검색 ▴</button>
       <div id="quickChips" class="quick-chips" role="group" aria-label="상황별 원클릭 추천 질문"></div>
 
       <!-- 일정·시간대 설정: 평소 한 줄 필, 클릭 시 아래로 아코디언 펼침 -->
