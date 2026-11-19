@@ -1,3 +1,4 @@
+import { regionOptions, resolveSearchRegion, revealDelay, scrollToResponse } from "./lib/search-flow.js";
 import './card-metadata.css';
 import { cardMetadata, familyInvite, CourseApiError, requestCourse, sourceLabel, sourceLines, stationInfo, stationUseNote } from "./lib/course-client.js";
 import { enqueueGeocode, ensureKakao, geocodePoint, kakaoLinks } from "./lib/kakao-route.js";
@@ -39,7 +40,10 @@ function init({ agentInstance }) {
     resetBtn: $("#resetBtn"),
     inviteModal: $("#inviteModal"),
     toast: $("#toast"),
+    region: $("#searchRegion"),
   };
+
+  regionOptions.forEach((region) => refs.region.add(new Option(region, region)));
 
   /* 이벤트 */
   refs.form.addEventListener("submit", (e) => { e.preventDefault(); const t = refs.input.value.trim(); if (t) submit(t); });
@@ -81,6 +85,14 @@ async function submit(text) {
 
   addUserMessage(text);
   const { bubble, handlers } = newAgentBubble();
+  const progress = el("div", "search-progress");
+  progress.setAttribute("role", "status");
+  const spinner = el("span", "search-spinner");
+  spinner.setAttribute("aria-hidden", "true");
+  const stage = el("span", "", "요청 분석 중");
+  progress.append(spinner, stage);
+  bubble.querySelector(".timeline").before(progress);
+  requestAnimationFrame(() => scrollToResponse(bubble));
   const schedule = {
     tripType: schedState.tripType,
     d1: { ...schedState.d1 },
@@ -90,25 +102,30 @@ async function submit(text) {
     hotel: schedState.hotel,
   };
   try {
+    const location = await resolveSearchRegion(text, refs.region.value, (step) => { stage.textContent = step; });
+    stage.textContent = "관광지·편의시설 조회 및 동선 구성 중";
     let response;
     try {
-      response = await requestCourse(text, schedule);
+      response = await requestCourse(text, schedule, location);
     } catch (error) {
       if (!(error instanceof CourseApiError) || !error.allowFallback) throw error;
+      progress.remove();
       refs.badge.textContent = "시연용 내장 샘플";
       handlers.onNote("서버에 연결하지 못해 시연용 내장 샘플을 표시해요. 실제 접근성 확인 결과는 아니에요.");
-      await uiAgent.handle(text, {
+      await uiAgent.handle(location.region ? `${location.region} ${text}` : text, {
         ...handlers,
         onAnswer(answer) {
           handlers.onAnswer({
             ...answer,
             intro: `시연용 내장 샘플 · ${answer.intro}`,
+            labels: [...(answer.labels || []), ...(location.regionSource === "location_unavailable" ? ["현재 위치 확인 불가 · 샘플 지역 기준"] : [])],
             cards: answer.cards?.map((card) => ({ ...card, sourceType: "fallback_mock" })),
           });
         },
       }, { schedule });
     }
     if (response) {
+      progress.remove();
       refs.badge.textContent = sourceLabel(response.sourceType) || "공공데이터 코스";
       const names = {
         searchNearbyRestaurants: "인근 식당·카페",
@@ -133,6 +150,7 @@ async function submit(text) {
       handlers.onAnswer(response.answer);
     }
   } catch (err) {
+    progress.remove();
     handlers.onAnswer({
       type: "greeting",
       intro: "죄송해요, 처리 중 문제가 생겼어요. 다시 한 번 말씀해 주시겠어요?",
@@ -147,6 +165,8 @@ async function submit(text) {
 
 function setBusy(v) {
   refs.sendBtn.disabled = v;
+  refs.resetBtn.disabled = v;
+  refs.region.disabled = v;
   refs.input.disabled = v;
   document.querySelectorAll(".chip").forEach((c) => (c.disabled = v));
 }
@@ -155,11 +175,10 @@ function addUserMessage(text) {
   const m = el("div", "msg user");
   m.innerHTML = `<div class="bubble"><p>${esc(text)}</p></div>`;
   refs.chat.appendChild(m);
-  autoscroll();
 }
 
 function newAgentBubble() {
-  const m = el("div", "msg agent");
+  const m = el("div", "msg agent search-response");
   m.innerHTML = `
     <div class="avatar" aria-hidden="true">🌿</div>
     <div class="bubble">
@@ -168,7 +187,6 @@ function newAgentBubble() {
       <div class="chips"></div>
     </div>`;
   refs.chat.appendChild(m);
-  autoscroll();
 
   const timeline = m.querySelector(".timeline");
   const content = m.querySelector(".content");
@@ -188,7 +206,6 @@ function newAgentBubble() {
     onStatusDone(s, detail) {
       doneStep(s);
       if (detail) s.querySelector(".step-body").appendChild(el("div", "step-detail", detail));
-      autoscroll();
     },
     /* 도구(Function) 호출 시각화 */
     onTool({ name, args }) {
@@ -209,7 +226,6 @@ function newAgentBubble() {
       s.querySelector(".step-body").appendChild(el("div", "step-detail",
         `→ 응답 ${result.items.length}건 선별 · ${src}`));
       if (result.liveNote) s.querySelector(".step-body").appendChild(el("div", "step-note", `ⓘ ${result.liveNote}`));
-      autoscroll();
     },
     /* 검증 근거 메모 (마지막 스텝 하단) */
     onNote(text) {
@@ -217,13 +233,17 @@ function newAgentBubble() {
       const body = last?.querySelector(".step-body");
       const note = el("div", "step-note", `· ${text}`);
       if (body) body.appendChild(note); else timeline.appendChild(note);
-      autoscroll();
     },
     onAnswer(answer) {
       renderAnswer(content, chips, answer);
       const map = content.querySelector(".route-section");
-      if (map) requestAnimationFrame(() => map.scrollIntoView({ block: "start" }));
-      else autoscroll();
+      if (map) content.appendChild(map);
+      const nodes = [...timeline.querySelectorAll(".step"), ...content.children];
+      nodes.forEach((node, index) => {
+        node.classList.add("search-reveal");
+        node.style.setProperty("--search-delay", `${node === map ? 740 : revealDelay(index)}ms`);
+      });
+      requestAnimationFrame(() => scrollToResponse(m));
     },
   };
   return { bubble: m, handlers };
@@ -238,7 +258,6 @@ function newStep(timeline, icon, title, detail) {
       ${detail ? `<div class="step-detail">${esc(detail)}</div>` : ""}
     </div>`;
   timeline.appendChild(s);
-  autoscroll();
   return s;
 }
 
