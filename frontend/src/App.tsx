@@ -268,8 +268,20 @@ const App = () => {
                   {msg.labels.map((label) => <li key={label}>{label}</li>)}
                 </ul>
               )}
+              {!!msg.route?.points.length && (
+                <section id={`course-route-${msg.id}`} className="route-summary search-reveal" style={{ "--search-delay": `${revealDelay(msg.steps?.length || 0) + 65}ms` } as React.CSSProperties} aria-label="이번 나들이 전체 동선 요약">
+                  <div className="section-heading">
+                    <h2>📋 이번 나들이 전체 동선 요약</h2>
+                    <button className="btn" type="button" onClick={() => openInvite(msg)}>초대장 보기</button>
+                  </div>
+                  <CourseMap points={msg.route.points} ref={(map) => {
+                    if (map) resultMaps.current.set(msg.id, map);
+                    else resultMaps.current.delete(msg.id);
+                  }} />
+                </section>
+              )}
               {msg.cards && msg.cards.length > 0 && (
-                <div className="course-cards search-reveal" style={{ "--search-delay": `${revealDelay((msg.steps?.length || 0) + 2)}ms` } as React.CSSProperties}>
+                <div className="course-cards search-reveal" style={{ "--search-delay": `${revealDelay(msg.steps?.length || 0) + 130}ms` } as React.CSSProperties}>
                   {msg.cards.map((card) => (
                     <article key={card.no} className="card">
                       <div className="card-header">
@@ -308,7 +320,7 @@ const App = () => {
                 </div>
               )}
               {(!!msg.summary?.length || !!msg.transitStations?.length || !!msg.nearbyFacilities?.length) && (
-                <section className="checkpoints search-reveal" style={{ "--search-delay": "680ms" } as React.CSSProperties}>
+                <section className="checkpoints search-reveal" style={{ "--search-delay": `${revealDelay(msg.steps?.length || 0) + 195}ms` } as React.CSSProperties}>
                   <h2>안심 체크포인트</h2>
                   {!!msg.summary?.length && <ul>{msg.summary.map((line) => <li key={line}>{line}</li>)}</ul>}
                   {!!msg.transitStations?.length && <div>
@@ -322,21 +334,9 @@ const App = () => {
                 </section>
               )}
               {!!msg.visitNotes?.length && (
-                <section className="checkpoints search-reveal" style={{ "--search-delay": "680ms" } as React.CSSProperties}>
+                <section className="checkpoints search-reveal" style={{ "--search-delay": `${revealDelay(msg.steps?.length || 0) + 195}ms` } as React.CSSProperties}>
                   <h2>방문 전 확인 메모</h2>
                   <ul>{msg.visitNotes.map((note) => <li key={note}>{note}</li>)}</ul>
-                </section>
-              )}
-              {!!msg.route?.points.length && (
-                <section id={`course-route-${msg.id}`} className="route-summary search-reveal" style={{ "--search-delay": "740ms" } as React.CSSProperties} aria-label="이번 나들이 전체 동선 요약">
-                  <div className="section-heading">
-                    <h2>📋 이번 나들이 전체 동선 요약</h2>
-                    <button className="btn" type="button" onClick={() => openInvite(msg)}>초대장 보기</button>
-                  </div>
-                  <CourseMap points={msg.route.points} ref={(map) => {
-                    if (map) resultMaps.current.set(msg.id, map);
-                    else resultMaps.current.delete(msg.id);
-                  }} />
                 </section>
               )}
               {!!msg.cards?.length && (
