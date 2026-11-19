@@ -8,6 +8,14 @@ export interface PublicSource {
   sourceUpdatedAt?: string | null;
 }
 
+export interface KdpcfFacility extends PublicSource {
+  id: string;
+  name: string;
+  address: string;
+  facilities: string[];
+  distanceM?: number;
+}
+
 export interface TransitStation {
   code: string;
   name: string;
@@ -42,6 +50,7 @@ export interface CourseCard extends PublicSource {
   accessibilityFetchedAt?: string | null;
   verificationNotice?: string;
   nearbyStation?: TransitStation;
+  kdpcfFacility?: KdpcfFacility;
   confirmedAttributes?: CourseCard['verifiedAttributes'];
 }
 
@@ -80,6 +89,7 @@ export interface ChatMessage {
   summary?: string[];
   visitNotes?: string[];
   transitStations?: TransitStation[];
+  nearbyFacilities?: KdpcfFacility[];
   labels?: string[];
   steps?: CourseStep[];
   invite?: string;
@@ -122,6 +132,7 @@ export interface CourseAnswer {
   summary: string[];
   visitNotes?: string[];
   transitStations?: TransitStation[];
+  nearbyFacilities?: KdpcfFacility[];
   invite: string;
   route: { points: RoutePoint[] };
   followups: string[];

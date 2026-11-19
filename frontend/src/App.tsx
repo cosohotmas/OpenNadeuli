@@ -1,7 +1,7 @@
 import './card-metadata.css';
 import React, { useState, useEffect, useRef } from 'react';
 import { kakaoLinks } from './lib/kakao-route.js';
-import type { CourseCard, ChatMessage, CourseSchedule, CourseStep, TransitStation } from './types';
+import type { CourseCard, ChatMessage, CourseSchedule, CourseStep, KdpcfFacility, TransitStation } from './types';
 import { SampleCourse } from './lib/sample-course';
 import { postCourse } from './lib/api';
 import { cardMetadata, familyInvite, sourceLines, stationInfo, stationUseNote } from './lib/course-client.js';
@@ -36,6 +36,20 @@ function CardMetadata({ card }: { card: CourseCard }) {
       {card.sourceUrl && <a href={card.sourceUrl} target="_blank" rel="noopener noreferrer">공식 원문 ↗</a>}
     </details>}
   </>;
+}
+
+function FacilityDetails({ facility }: { facility: KdpcfFacility }) {
+  return <div className="course-station">
+    <strong>{facility.name}</strong>
+    {facility.distanceM != null && <span> · 방문 지점에서 직선 약 {facility.distanceM}m</span>}
+    {facility.address && <div>{facility.address}</div>}
+    <div className="course-meta-chips" aria-label="공공데이터에 기재된 기구표 항목">
+      {facility.facilities.map((item) => <span className="course-meta-chip course-meta-facility" key={item}>{item}</span>)}
+    </div>
+    <a href={facility.sourceUrl} target="_blank" rel="noopener noreferrer">공공 API 조회 · {facility.provider}</a>
+    <div>API 조회 <time dateTime={facility.fetchedAt || undefined}>{facility.fetchedAt}</time></div>
+    <div>공공데이터 기구표에 기재된 항목입니다. 이용 가능 여부는 방문 전 확인해 주세요.</div>
+  </div>;
 }
 
 function StationDetails({ station }: { station: TransitStation }) {
@@ -116,6 +130,7 @@ const App = () => {
         searchStayHotels: '한국관광공사 숙박',
         searchAccessibleTrails: '무장애 탐방로',
         searchBusanStationFacilities: '부산 도시철도 역사 편의시설',
+        searchKdpcfFacilities: '한국사회보장정보원 장애인편의시설',
       };
       const statuses = { success: '조회 완료', empty: '조건에 맞는 결과 없음', unavailable: '조회 실패', skipped: '조회 보류' };
       const steps: CourseStep[] = response.events.flatMap((event): CourseStep[] => {
@@ -265,6 +280,7 @@ const App = () => {
                         </div>
                       )}
                       {card.tip && <div className="card-tip">💡 {card.tip}</div>}
+                      {card.kdpcfFacility && <section aria-label="숙소 편의시설 보조 원본"><h4>숙소 편의시설 추가 출처</h4><FacilityDetails facility={card.kdpcfFacility} /></section>}
                       {card.nearbyStation && <section aria-label="인근 역사 이동 참고"><h4>인근 역사 이동 참고</h4><StationDetails station={card.nearbyStation} /></section>}
                       <div className="course-map-links">
                         {!!msg.route?.points.length && <button className="btn" type="button" onClick={() => {
@@ -278,13 +294,17 @@ const App = () => {
                   ))}
                 </div>
               )}
-              {(!!msg.summary?.length || !!msg.transitStations?.length) && (
+              {(!!msg.summary?.length || !!msg.transitStations?.length || !!msg.nearbyFacilities?.length) && (
                 <section className="checkpoints">
                   <h2>안심 체크포인트</h2>
                   {!!msg.summary?.length && <ul>{msg.summary.map((line) => <li key={line}>{line}</li>)}</ul>}
                   {!!msg.transitStations?.length && <div>
                     <h3>인근 역사 이동 참고</h3>
                     {msg.transitStations.map((station) => <StationDetails station={station} key={station.code} />)}
+                  </div>}
+                  {!!msg.nearbyFacilities?.length && <div>
+                    <h3>동선 인근 편의시설 참고</h3>
+                    {msg.nearbyFacilities.map((facility) => <FacilityDetails facility={facility} key={facility.id} />)}
                   </div>}
                 </section>
               )}
