@@ -1,3 +1,4 @@
+import "./mobile-chat.css";
 import { mountRegionPicker } from "./lib/region-picker.js";
 import { resolveSearchRegion, revealDelay, scrollToResponse, searchProgress } from "./lib/search-flow.js";
 import './card-metadata.css';
@@ -39,6 +40,7 @@ function init({ agentInstance }) {
     input: $("#chatInput"),
     sendBtn: $("#sendBtn"),
     quick: $("#quickChips"),
+    quickToggle: $("#quickToggle"),
     badge: $("#dataSourceBadge"),
     resetBtn: $("#resetBtn"),
     inviteModal: $("#inviteModal"),
@@ -55,6 +57,7 @@ function init({ agentInstance }) {
     const b = e.target.closest(".chip"); if (b && !busy) submit(b.dataset.q);
   });
   refs.resetBtn.addEventListener("click", resetChat);
+  refs.quickToggle.addEventListener("click", () => setQuickCollapsed(!refs.quickToggle.hasAttribute("data-quick-collapsed")));
 
   /* 모달 닫기 */
   document.querySelectorAll("[data-close]").forEach((b) =>
@@ -84,6 +87,7 @@ async function submit(text) {
   busy = true;
   const request = ++activeRequest;
   refs.retry.hidden = true;
+  setQuickCollapsed(true);
   /* 전송 시 시간대 패널 자동 접기 — 답변이 화면을 가리지 않도록 */
   setExpanded(false);
   refs.input.value = "";
@@ -621,6 +625,13 @@ function renderChips(container, items) {
   });
 }
 
+function setQuickCollapsed(collapsed, started = true) {
+  refs.quickToggle.toggleAttribute("data-quick-started", started);
+  refs.quickToggle.toggleAttribute("data-quick-collapsed", collapsed);
+  refs.quickToggle.setAttribute("aria-expanded", String(!collapsed));
+  refs.quickToggle.textContent = `추천 검색 ${collapsed ? "▾" : "▴"}`;
+}
+
 function renderQuickChips() {
   refs.quick.innerHTML = "";
   const label = el("div", "chips-label", "👇 눌러서 바로 물어보세요");
@@ -657,6 +668,7 @@ function showWelcome() {
 }
 
 function resetChat() {
+  setQuickCollapsed(false, false);
   activeRequest++;
   refs.retry.hidden = true;
   refs.chat.innerHTML = "";
