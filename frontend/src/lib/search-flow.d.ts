@@ -1,7 +1,7 @@
 export type SearchRegion = {
   region?: string;
   locationStatus?: 'denied' | 'timeout' | 'region_unknown' | 'unavailable';
-  regionSource?: 'selected' | 'location' | 'location_unavailable';
+  regionSource?: 'selected' | 'location' | 'location_recent' | 'location_unavailable';
 };
 export const regionOptions: string[];
 export function resolveSearchRegion(text: string, selected: string, report: (step: string) => void, onLateRegion?: (region: string) => void): Promise<SearchRegion>;

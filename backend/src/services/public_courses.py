@@ -200,15 +200,18 @@ async def public_course(text, schedule, requested_region=None, region_source=Non
     intent = parse_intent(text)
     chosen = requested_region if requested_region in DISTRICTS else None
     region = intent.region or chosen or ("서울" if region_source == "location_unavailable" else default_region(intent.themes))
+    reason = {
+        "denied": "위치 권한 거부", "timeout": "위치 확인 시간 초과",
+        "region_unknown": "좌표 수신 · 지역 판별 실패",
+    }.get(location_status, "현재 위치 확인 불가")
     if intent.region:
         basis = "질문에 지정한 지역"
     elif chosen:
-        basis = "현재 위치 기준" if region_source == "location" else "선택 지역 기준"
+        basis = {
+            "location": "현재 위치 기준",
+            "location_recent": f"{reason} · 최근 확인 지역",
+        }.get(region_source, "선택 지역 기준")
     elif region_source == "location_unavailable":
-        reason = {
-            "denied": "위치 권한 거부", "timeout": "위치 확인 시간 초과",
-            "region_unknown": "좌표 수신 · 지역 판별 실패",
-        }.get(location_status, "현재 위치 확인 불가")
         basis = f"{reason} · 기본 지역"
     else:
         basis = "기본 지역"
