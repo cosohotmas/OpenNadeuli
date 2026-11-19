@@ -32,3 +32,5 @@ node_modules/
 .ruff_cache/
 
 .vercel/
+
+frontend/dist-offline/

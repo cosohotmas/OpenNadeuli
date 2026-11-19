@@ -17,7 +17,8 @@ import os
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, model_validator
 
-from ..services.agent import get_agent, OutingAgent
+from ..services.agent import get_agent
+from ..services.public_courses import PublicDataUnavailable, public_course
 from ..services.tools import load_settings, save_settings
 
 router = APIRouter()
@@ -62,6 +63,11 @@ async def health() -> Dict[str, str]:
 @router.post("/api/course")
 async def course(req: CourseRequest) -> Dict[str, Any]:
     """나들이 코스 추천."""
+    if os.getenv("OPENNADEULI_USE_LIVE", "true").strip().lower() not in {"false", "0", "no"}:
+        try:
+            return await public_course(req.text, (req.schedule or CourseSchedule()).model_dump())
+        except PublicDataUnavailable:
+            raise HTTPException(status_code=503, detail="공공데이터 조회를 완료하지 못했어요.") from None
     agent = get_agent()
     events = []
 
@@ -75,12 +81,18 @@ async def course(req: CourseRequest) -> Dict[str, Any]:
         events.append({"type": "tool", "call": call})
 
     def on_tool_done(step, result):
-        events.append({"type": "toolDone", "step": step, "result": result})
+        events.append({"type": "toolDone", "step": step, "result": {
+            **result, "sourceType": "fallback_mock", "fetchedAt": None, "sourceUpdatedAt": None,
+            "status": "success" if result["items"] else "empty", "count": len(result["items"]),
+        }})
 
     def on_note(text):
         events.append({"type": "note", "text": text})
 
     def on_answer(answer):
+        answer["intro"] = "시연용 내장 샘플 · " + answer["intro"]
+        for card in answer.get("cards", []):
+            card.update(sourceType="fallback_mock", fetchedAt=None, sourceUpdatedAt=None, verifiedAttributes=[])
         events.append({"type": "answer", "answer": answer})
 
     handlers = {
@@ -99,6 +111,7 @@ async def course(req: CourseRequest) -> Dict[str, Any]:
         "events": events,
         "answer": answer_event["answer"] if answer_event else None,
         "source": agent.source_label(),
+        "sourceType": "fallback_mock",
     }
 
 
@@ -111,7 +124,7 @@ def _require_settings_enabled() -> None:
 async def get_settings() -> Dict[str, Any]:
     """현재 설정 조회."""
     _require_settings_enabled()
-    return load_settings()
+    return {"useLive": load_settings()["useLive"]}
 
 
 @router.post("/api/settings")
@@ -122,6 +135,6 @@ async def post_settings(req: SettingsRequest) -> Dict[str, Any]:
     if req.useLive is not None:
         current["useLive"] = req.useLive
     if req.keys is not None:
-        current["keys"] = {**current.get("keys", {}), **req.keys}
+        raise HTTPException(status_code=422, detail="공공데이터 인증키는 서버 환경변수로 설정해 주세요.")
     save_settings(current)
-    return current
+    return {"useLive": current["useLive"]}

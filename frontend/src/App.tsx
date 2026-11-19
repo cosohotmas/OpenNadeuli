@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import type { ChatMessage, CourseSchedule } from './types';
+import type { ChatMessage, CourseSchedule, CourseStep } from './types';
 import { SampleCourse } from './lib/sample-course';
+import { postCourse } from './lib/api';
+import { sourceLabel, sourceLines } from './lib/course-client.js';
 import CourseMap, { type CourseMapHandle } from './components/CourseMap';
 import TimeRange, { formatHour } from './components/TimeRange';
 
@@ -68,20 +70,37 @@ const App = () => {
     setLoading(true);
 
     try {
-      await engine.recommend(message, schedule, answerId, (answer) => {
-        setMessages((previous) => previous.some((row) => row.id === answerId)
-          ? previous.map((row) => row.id === answerId ? answer : row)
-          : [...previous, answer]);
+      const response = await postCourse(message, schedule);
+      const answer = response.answer;
+      if (!answer) throw new Error('Missing course answer');
+      const names: Record<string, string> = {
+        searchOpenTouristSpots: '한국관광공사 관광지',
+        searchNearbyRestaurants: '인근 식당·카페',
+        searchStayHotels: '한국관광공사 숙박',
+        searchAccessibleTrails: '무장애 탐방로',
+      };
+      const statuses = { success: '조회 완료', empty: '조건에 맞는 결과 없음', unavailable: '조회 실패', skipped: '조회 보류' };
+      const steps: CourseStep[] = response.events.flatMap((event): CourseStep[] => {
+        if (event.type === 'status') return [{ title: event.step ?? '요청 분석', detail: event.detail }];
+        if (event.type !== 'toolDone' || !event.result) return [];
+        const result = event.result;
+        return [{
+          title: names[event.step ?? ''] || event.step || '데이터 조회',
+          done: `${statuses[result.status]} · ${result.count}건`,
+          source: result.fetchedAt || result.sourceType === 'fallback_mock' ? result : undefined,
+          notes: result.note ? [result.note] : undefined,
+        }];
       });
+      setMessages((previous) => [...previous, { ...answer, id: answerId, type: 'agent', steps }]);
     } catch (err) {
       console.error(err);
-      setToast('요청 중 오류가 발생했어요. 잠시 후 다시 시도해 주세요.');
+      setToast('공공데이터를 조회하지 못했어요. 다시 시도하거나 백업을 열어 주세요.');
       setMessages((prev) => [
         ...prev.filter((row) => row.id !== answerId),
         {
           id: answerId,
           type: 'agent',
-          intro: '죄송해요. 처리 중 문제가 생겼어요. 다시 한 번 말해주시겠어요?',
+          intro: '공공데이터 연결을 확인해 주세요. 백업에서는 시연용 샘플을 실행할 수 있어요.',
           cards: [],
           followups: ['부모님 모시고 가기 좋은 부산 바다 데크길 코스'],
         },
@@ -137,7 +156,8 @@ const App = () => {
           </div>
         </div>
         <div className="header-actions">
-          <span className="data-badge">내장 샘플 데이터</span>
+          <span className="data-badge">공공데이터 코스</span>
+          <a className="btn" href="/elice-final.html">백업 화면</a>
           <button className="btn btn-ghost" type="button" onClick={resetChat} disabled={loading}>
             ↺ 대화 초기화
           </button>
@@ -160,6 +180,7 @@ const App = () => {
                         {step.detail && <p>{step.detail}</p>}
                         {step.args !== undefined && <details><summary>조회 조건</summary><pre>{JSON.stringify(step.args, null, 2)}</pre></details>}
                         {step.done && <p>{step.done}</p>}
+                        {step.source && <p className="source-details">{sourceLines(step.source).join(' · ')}</p>}
                         {step.notes?.map((note) => <p className="step-note" key={note}>{note}</p>)}
                       </div>
                     </li>
@@ -191,12 +212,27 @@ const App = () => {
                       <div className="card-header">
                         <span className="card-no">{card.no}</span>
                         <span className="card-phase">
-                          {card.phase}
+                          {card.time ? `${card.day ? `${card.day}일차 ` : ''}${card.time} · ` : ''}{card.phase}
                         </span>
                         <h3 className="card-name"><span aria-hidden="true">{card.emoji}</span> {card.name}</h3>
                       </div>
                       {card.kind && <div className="card-kind">{card.kind}</div>}
                       <div className="card-address">{card.address}</div>
+                      {sourceLabel(card.sourceType) && (
+                        <div className="source-details">
+                          <span className="badge">{sourceLabel(card.sourceType)}</span>
+                          <p>{sourceLines(card).slice(1).join(' · ')}</p>
+                          {card.accessibilityFetchedAt && <p>무장애 상세 조회 {card.accessibilityFetchedAt}</p>}
+                          {card.sourceUrl && <a href={card.sourceUrl} target="_blank" rel="noopener noreferrer">공식 원문</a>}
+                        </div>
+                      )}
+                      {!!card.verifiedAttributes?.length && (
+                        <section className="card-details">
+                          <strong>공공데이터에 기재</strong>
+                          <ul>{card.verifiedAttributes.map(({ field, label, value }) => <li key={field}>{label} · {value}</li>)}</ul>
+                        </section>
+                      )}
+                      {card.verificationNotice && <p className="step-note"><strong>현장·유선 확인 권장</strong> · {card.verificationNotice}</p>}
                       {card.badges.length > 0 && (
                         <div className="card-badges" aria-label="무장애 편의시설">
                           {card.badges.map((b) => (
@@ -206,7 +242,7 @@ const App = () => {
                           ))}
                         </div>
                       )}
-                      {!card.badges.length && <p className="card-address">등록된 무장애 편의시설 정보가 없어요.</p>}
+                      {!card.badges.length && !card.verificationNotice && <p className="card-address">등록된 무장애 편의시설 정보가 없어요.</p>}
                       {card.details && !!Object.keys(card.details).length && (
                         <dl className="card-details">
                           {Object.entries(card.details).map(([label, value]) => (

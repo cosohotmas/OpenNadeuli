@@ -40,12 +40,12 @@ DEFAULT_SETTINGS = {
 
 def load_settings() -> dict:
     import os
-    s = dict(DEFAULT_SETTINGS)
+    s = {**DEFAULT_SETTINGS, "keys": dict(DEFAULT_SETTINGS["keys"])}
     for key_name in s["keys"]:
         env_val = os.environ.get(f"OPENNADEULI_{key_name.upper()}")
         if env_val:
             s["keys"][key_name] = env_val
-    s["useLive"] = os.environ.get("OPENNADEULI_USE_LIVE", "").lower() == "true"
+    s["useLive"] = os.environ.get("OPENNADEULI_USE_LIVE", "true").strip().lower() not in {"false", "0", "no"}
     return s
 
 
@@ -117,8 +117,10 @@ def _try_live(spec: dict, args: dict, settings: dict) -> Optional[dict]:
             items = _map_response(spec["name"], data, args)
             return {"ok": True, "items": items, "excluded": [],
                     "note": f"실시간 공공데이터 {len(items)}건"}
-    except Exception as e:
-        return {"ok": False, "note": f"오류: {e} → 내장 데이터 전환"}
+    except (httpx.HTTPError, ValueError) as exc:
+        import logging
+        logging.getLogger(__name__).warning("자료 조회 실패: %s", type(exc).__name__)
+        return {"ok": False, "note": "공공데이터 조회 실패 → 내장 데이터 전환"}
 
 
 def _map_response(tool_name: str, json_data: dict, args: dict) -> List[dict]:
