@@ -249,12 +249,14 @@ function newAgentBubble() {
     },
     onAnswer(answer) {
       renderAnswer(content, chips, answer);
-      const map = content.querySelector(".route-section");
-      if (map) content.appendChild(map);
-      const nodes = [...timeline.querySelectorAll(".step"), ...content.children];
+      const steps = [...timeline.querySelectorAll(".step")];
+      const start = revealDelay(steps.length);
+      const nodes = [...steps, ...content.children];
       nodes.forEach((node, index) => {
+        const delay = index < steps.length ? revealDelay(index)
+          : start + 65 * Math.max(0, index - steps.length - (answer.labels?.length ? 1 : 0));
         node.classList.add("search-reveal");
-        node.style.setProperty("--search-delay", `${node === map ? 740 : revealDelay(index)}ms`);
+        node.style.setProperty("--search-delay", `${delay}ms`);
       });
       requestAnimationFrame(() => scrollToResponse(m));
     },
