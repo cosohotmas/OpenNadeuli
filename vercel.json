@@ -7,10 +7,7 @@
   "headers": [
     {
       "source": "/",
-      "functions": {
-    "api/index.py": { "includeFiles": "backend/src/data/busan_station_coordinates.csv" }
-  },
-  "headers": [
+      "headers": [
         {
           "key": "Cache-Control",
           "value": "no-store"
@@ -19,10 +16,7 @@
     },
     {
       "source": "/(.*\\.html)",
-      "functions": {
-    "api/index.py": { "includeFiles": "backend/src/data/busan_station_coordinates.csv" }
-  },
-  "headers": [
+      "headers": [
         {
           "key": "Cache-Control",
           "value": "no-store"
