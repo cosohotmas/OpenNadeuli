@@ -32,6 +32,7 @@ export interface TransitStation {
 
 /** 에이전트 응답에서 사용하는 카드 UI 타입 */
 export interface CourseCard extends PublicSource {
+  phone?: string | null;
   no: number;
   day?: number | null;
   time?: string | null;

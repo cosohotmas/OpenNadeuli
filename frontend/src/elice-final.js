@@ -330,7 +330,7 @@ function stationHtml(station) {
 function renderCard(c, focusVisit) {
   const card = el("article", "card");
   const phase = c.time ? `${c.day ? `${c.day}일차 ` : ""}${c.time} · ${c.phase}` : c.phase;
-  const { chips, fields } = cardMetadata(c);
+  const { chips, fields, contact } = cardMetadata(c);
   const { notice } = kakaoLinks(c);
   card.innerHTML = `
     <div class="card-rail">
@@ -348,6 +348,7 @@ function renderCard(c, focusVisit) {
       <div class="card-addr">📍 ${esc(c.address)}</div>
       <div class="badges">${(c.badges || []).map((k) => badgeHtml(k, c.badgeNote?.[k]) || `<span class="badge">${esc(k)}</span>`).join("")}</div>
       ${chips.length ? `<div class="course-meta-chips">${chips.map(({ tone, text }) => `<span class="course-meta-chip course-meta-${tone}">${esc(text)}</span>`).join("")}</div>` : ""}
+      ${contact ? `<a href="${esc(contact.href)}">전화 ${esc(contact.text)}</a>` : ""}
       ${fields.length || c.sourceUrl ? `<details class="course-meta-details">
         <summary>출처·조회정보 보기</summary>
         <dl>${fields.map(([label, value]) => `<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join("")}</dl>
