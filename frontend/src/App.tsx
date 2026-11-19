@@ -25,11 +25,12 @@ const defaultSchedule: CourseSchedule = {
 };
 
 function CardMetadata({ card }: { card: CourseCard }) {
-  const { chips, fields } = cardMetadata(card);
+  const { chips, fields, contact } = cardMetadata(card);
   return <>
     {!!chips.length && <div className="course-meta-chips">
       {chips.map(({ tone, text }) => <span key={text} className={`course-meta-chip course-meta-${tone}`}>{text}</span>)}
     </div>}
+    {contact && <a className="map-link" href={contact.href}>전화 {contact.text}</a>}
     {(!!fields.length || card.sourceUrl) && <details className="course-meta-details">
       <summary>출처·조회정보 보기</summary>
       <dl>{fields.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>

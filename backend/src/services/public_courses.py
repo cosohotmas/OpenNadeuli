@@ -5,6 +5,7 @@ import asyncio
 import logging
 import os
 import re
+import random
 import ssl
 from datetime import datetime, timezone
 from urllib.parse import unquote, urlsplit
@@ -87,7 +88,7 @@ async def read_items(client, url, key, params, *, shop=False, flat=False):
 
 def tour_params(region, content_type):
     return {"MobileOS": "ETC", "MobileApp": "OpenNadeuli", "_type": "json",
-            "lDongRegnCd": DISTRICTS[region], "contentTypeId": content_type, "numOfRows": 12}
+            "lDongRegnCd": DISTRICTS[region], "contentTypeId": content_type, "numOfRows": 24}
 
 
 SHOP_EXCLUDED = re.compile(r"콜라텍|유흥|단란주점|호프|노래방|부동산|공인중개|매매점|중개사무소|출장뷔페")
@@ -161,6 +162,7 @@ async def tour_candidate(client, row, key, fetched_at, kind):
     notice = ", ".join(unknown) + " 확인" if unknown else ""
     return {
         "name": row["title"], "address": row.get("addr1") or "", "kind": kind,
+        "phone": row.get("tel"),
         "emoji": "🏨" if kind == "숙박" else "📍", "lat": lat, "lng": lng,
         "sourceType": "live_api", **TOUR_SOURCE, "fetchedAt": fetched_at,
         "sourceUpdatedAt": row.get("modifiedtime") or None, "accessibilityFetchedAt": detail_at,
@@ -245,7 +247,11 @@ async def public_course(text, schedule):
             except PublicDataUnavailable as exc:
                 log_tool(name, args, "unavailable", TOUR_SOURCE, note=str(exc))
                 return []
-            rows = [row for row in rows if row.get("title") and str(row.get("contenttypeid")) == str(type_id)][:limit]
+            rows = [row for row in rows if row.get("title") and str(row.get("contenttypeid")) == str(type_id)]
+            if kind != "숙박":
+                rows = random.sample(rows, min(len(rows), limit))
+            else:
+                rows = rows[:limit]
             enriched = await asyncio.gather(*(tour_candidate(client, row, key, fetched, kind) for row in rows))
             log_tool(name, args, "success" if enriched else "empty", TOUR_SOURCE, fetched, count=len(enriched),
                      note="목록과 무장애 상세에 기재된 항목을 표시해요."
@@ -286,6 +292,7 @@ async def public_course(text, schedule):
                 latitude, longitude = coordinates(row, "lat", "lon")
                 (cafes if is_cafe else meals).append({
                     "name": name, "address": address, "kind": "카페" if is_cafe else "식당",
+                    "phone": row.get("tel"),
                     "emoji": "☕" if is_cafe else "🍽️", "lat": latitude, "lng": longitude,
                     "sourceType": "live_api", **SHOP_SOURCE, "fetchedAt": fetched,
                     "sourceUpdatedAt": updated, "verifiedAttributes": [],
@@ -295,6 +302,8 @@ async def public_course(text, schedule):
             count = (len(meals) if needs_meal and "카페만" not in text else 0) + (len(cafes) if needs_cafe else 0)
             log_tool("searchNearbyRestaurants", args, "success" if count else "empty", SHOP_SOURCE, fetched, updated, count,
                      "상권 업종을 확인했어요. 출입구 턱과 편의시설 정보는 제공되지 않아요.")
+            random.shuffle(meals)
+            random.shuffle(cafes)
             return meals, cafes
 
         async def attractions():
@@ -431,9 +440,9 @@ async def public_course(text, schedule):
         if details := card.get("confirmedAttributes"):
             invite_lines.append("✅ 확인된 무장애 항목 · " + " / ".join(v["label"] for v in details))
         if card["kind"] in {"식당", "카페"}:
-            invite_lines.append("📞 방문 전 출입구·영업 확인 권장")
+            invite_lines.append("ℹ️ 방문 전 출입구·영업 확인 권장")
         elif card["verificationNotice"]:
-            invite_lines.append(f'📞 {card["verificationNotice"]}')
+            invite_lines.append(f'ℹ️ {card["verificationNotice"]}')
     for station in transit_stations:
         mobility = " · ".join(f'{item["label"]} {item["count"]}개' for item in station["facilities"]
                               if item["code"] in {"elI", "elO", "ourbridge"})

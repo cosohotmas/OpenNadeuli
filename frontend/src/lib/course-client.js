@@ -55,7 +55,15 @@ export function sourceLines(source) {
   ].filter(Boolean);
 }
 
+function publicPhone(value) {
+  if (typeof value !== 'string' || !/^(?:\+82|0|1)[0-9 ()-]+$/.test(value.trim())) return undefined;
+  const number = value.trim().replace(/[ ()-]/g, '');
+  if (!/^(?:\+82[1-9]\d{7,9}|0[1-9]\d{7,9}|1[568]\d{6})$/.test(number)) return undefined;
+  return { text: value.trim(), href: `tel:${number}` };
+}
+
 export function cardMetadata(card) {
+  const contact = publicPhone(card.phone);
   const chips = [];
   const fields = [];
   const source = sourceLabel(card.sourceType);
@@ -81,10 +89,12 @@ export function cardMetadata(card) {
   }
   if (card.verificationNotice) {
     const text = shop ? '출입구 턱·좌석·화장실' : card.verificationNotice.replace(/ 확인$/, '');
-    chips.push({ tone: 'notice', text: `📞 ${text} 현장·유선 확인 권장` });
-    fields.push(['현장·유선 확인 권장', card.verificationNotice]);
+    const label = contact ? '현장·유선 확인 권장' : '방문 전 확인 권장';
+    const subject = shop && !contact ? '출입구·영업' : text;
+    chips.push({ tone: 'notice', text: `${contact ? '📞' : 'ℹ️'} ${subject} · ${label}` });
+    fields.push([label, card.verificationNotice]);
   }
-  return { chips, fields };
+  return { chips, fields, contact };
 }
 
 export const stationUseNote = '이용 전 역사 설비 운행·점검 여부 확인 권장';
@@ -114,9 +124,9 @@ export function familyInvite(places) {
         `${label}: ${value.replace(/\s+/g, ' ')}`).join(' / ')}`);
     }
     if (['식당', '카페'].includes(place.kind) && place.sourceType === 'live_api') {
-      lines.push('📞 방문 전 출입구·영업 확인 권장');
+      lines.push('ℹ️ 방문 전 출입구·영업 확인 권장');
     } else if (place.verificationNotice) {
-      lines.push(`📞 ${place.verificationNotice}`);
+      lines.push(`ℹ️ ${place.verificationNotice}`);
     }
     if (Number.isFinite(place.lat) && Number.isFinite(place.lng)
         && Math.abs(place.lat) <= 90 && Math.abs(place.lng) <= 180) {

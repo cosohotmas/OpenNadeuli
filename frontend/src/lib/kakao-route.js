@@ -138,6 +138,6 @@ export function kakaoLinks({ name, address, lat, lng, kind }) {
     addressSearch: shop && cleanAddress ? search(cleanAddress) : undefined,
     directions: validCoordinates ? `${base}/to/${pin}` : undefined,
     directionsLabel: shop ? '좌표로 길찾기 ↗' : '길찾기 ↗',
-    notice: shop ? '상호·지점명·영업 정보는 카카오맵과 다를 수 있어요. 검색 결과가 다르면 주소로 확인해 주세요.' : undefined,
+    notice: shop ? '카카오맵에 검색 결과가 없거나 상호·지점명·영업 정보가 다를 수 있어요. 주소로 다시 검색해 확인해 주세요.' : undefined,
   };
 }
