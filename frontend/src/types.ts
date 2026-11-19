@@ -55,6 +55,7 @@ export interface CourseCard extends PublicSource {
 }
 
 export interface RoutePoint {
+  kind?: string;
   no: number;
   day: number | null;
   time: string | null;

@@ -38,3 +38,8 @@
   font-size: .92em;
   overflow-wrap: anywhere;
 }
+
+.course-map-note {
+  margin-block: .55rem;
+  font-size: .92em;
+}

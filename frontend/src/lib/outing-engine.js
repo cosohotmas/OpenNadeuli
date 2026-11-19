@@ -2108,6 +2108,7 @@ function routeRows(evs, overnight) {
       row.queryAlt = p.title;
     } else {
       const a = p.access || {};
+      row.kind = ev.kind === "cafe" ? "카페" : "식당";
       row.name = p.bizesNm;
       row.address = p.rdnmAdr || "";
       row.emoji = ev.kind === "cafe" ? "☕" : "🍚";

@@ -67,11 +67,12 @@ function StationDetails({ station }: { station: TransitStation }) {
   </div>;
 }
 
-function ExternalMapLinks({ place }: { place: Pick<CourseCard, 'name' | 'address' | 'lat' | 'lng'> }) {
+function ExternalMapLinks({ place }: { place: Pick<CourseCard, 'name' | 'address' | 'lat' | 'lng' | 'kind'> }) {
   const links = kakaoLinks(place);
   return <>
-    <a className="map-link" href={links.map} target="_blank" rel="noopener noreferrer">카카오맵에서 열기 ↗</a>
-    {links.directions && <a className="map-link" href={links.directions} target="_blank" rel="noopener noreferrer">길찾기 ↗</a>}
+    <a className="map-link" href={links.map} target="_blank" rel="noopener noreferrer">{links.mapLabel}</a>
+    {links.addressSearch && <a className="map-link" href={links.addressSearch} target="_blank" rel="noopener noreferrer">주소로 검색 ↗</a>}
+    {links.directions && <a className="map-link" href={links.directions} target="_blank" rel="noopener noreferrer">{links.directionsLabel}</a>}
   </>;
 }
 
@@ -282,6 +283,7 @@ const App = () => {
                       {card.tip && <div className="card-tip">💡 {card.tip}</div>}
                       {card.kdpcfFacility && <section aria-label="숙소 편의시설 보조 원본"><h4>숙소 편의시설 추가 출처</h4><FacilityDetails facility={card.kdpcfFacility} /></section>}
                       {card.nearbyStation && <section aria-label="인근 역사 이동 참고"><h4>인근 역사 이동 참고</h4><StationDetails station={card.nearbyStation} /></section>}
+                      {kakaoLinks(card).notice && <p className="course-map-note">{kakaoLinks(card).notice}</p>}
                       <div className="course-map-links">
                         {!!msg.route?.points.length && <button className="btn" type="button" onClick={() => {
                           if (!resultMaps.current.get(msg.id)?.focusVisit(card.no)) {

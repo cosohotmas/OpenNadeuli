@@ -112,11 +112,32 @@ async function geocodePoint(pt) {
 
 export { enqueueGeocode, ensureKakao, geocodePoint };
 
-export function kakaoLinks({ name, address, lat, lng }) {
-  const base = 'https://map.kakao.com/link';
-  if (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
-    const pin = `${encodeURIComponent(name)},${lat},${lng}`;
-    return { map: `${base}/map/${pin}`, directions: `${base}/to/${pin}` };
+function addressRegion(address) {
+  const tokens = address.split(' ');
+  let end = 0;
+  while (end < Math.min(tokens.length, 4)) {
+    if (end > 0 && !/^[가-힣]+(?:시|군|구)$/.test(tokens[end])) break;
+    end++;
   }
-  return { map: `${base}/search/${encodeURIComponent([name, address].filter(Boolean).join(' '))}` };
+  return end > 1 ? tokens.slice(0, end).join(' ') : address;
+}
+
+export function kakaoLinks({ name, address, lat, lng, kind }) {
+  const base = 'https://map.kakao.com/link';
+  const search = (query) => `${base}/search/${encodeURIComponent(query)}`;
+  const shop = /^(식당|카페)(?:\s|$)/.test(kind || '');
+  const cleanAddress = (address || '').trim().replace(/\s+/g, ' ');
+  const cleanName = name.trim().replace(/\s+/g, ' ');
+  const query = [cleanName, shop ? addressRegion(cleanAddress) : cleanAddress].filter(Boolean).join(' ');
+  const validCoordinates = Number.isFinite(lat) && Number.isFinite(lng)
+    && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && !(lat === 0 && lng === 0);
+  const pin = `${encodeURIComponent(cleanName)},${lat},${lng}`;
+  return {
+    map: !shop && validCoordinates ? `${base}/map/${pin}` : search(query),
+    mapLabel: shop ? '카카오맵에서 상호 검색 ↗' : '카카오맵에서 열기 ↗',
+    addressSearch: shop && cleanAddress ? search(cleanAddress) : undefined,
+    directions: validCoordinates ? `${base}/to/${pin}` : undefined,
+    directionsLabel: shop ? '좌표로 길찾기 ↗' : '길찾기 ↗',
+    notice: shop ? '상호·지점명·영업 정보는 카카오맵과 다를 수 있어요. 검색 결과가 다르면 주소로 확인해 주세요.' : undefined,
+  };
 }

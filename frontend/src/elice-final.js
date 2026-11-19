@@ -331,6 +331,7 @@ function renderCard(c, focusVisit) {
   const card = el("article", "card");
   const phase = c.time ? `${c.day ? `${c.day}일차 ` : ""}${c.time} · ${c.phase}` : c.phase;
   const { chips, fields } = cardMetadata(c);
+  const { notice } = kakaoLinks(c);
   card.innerHTML = `
     <div class="card-rail">
       <div class="card-order"><span class="no">${c.no}</span></div>
@@ -355,6 +356,7 @@ function renderCard(c, focusVisit) {
       ${c.tip ? `<div class="card-tip">💡 ${esc(c.tip)}</div>` : ""}
       ${c.kdpcfFacility ? `<section aria-label="숙소 편의시설 보조 원본"><h4>숙소 편의시설 추가 출처</h4>${facilityHtml(c.kdpcfFacility)}</section>` : ""}
       ${c.nearbyStation ? `<section aria-label="인근 역사 이동 참고"><h4>인근 역사 이동 참고</h4>${stationHtml(c.nearbyStation)}</section>` : ""}
+      ${notice ? `<p class="course-map-note">${esc(notice)}</p>` : ""}
       <div class="card-links">${focusVisit ? '<button type="button" class="btn">내장 지도 위치</button>' : ''} ${mapLinksHtml(c)}</div>
     </div>`;
   card.querySelector(".card-links button")?.addEventListener("click", () => {
@@ -370,9 +372,10 @@ function badgeHtml(key, note) {
 }
 
 function mapLinksHtml(place) {
-  const { map, directions } = kakaoLinks(place);
+  const { map, mapLabel, addressSearch, directions, directionsLabel } = kakaoLinks(place);
   const link = (url, label) => `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
-  return link(map, "카카오맵에서 열기 ↗") + (directions ? " " + link(directions, "길찾기 ↗") : "");
+  return [link(map, mapLabel), addressSearch && link(addressSearch, "주소로 검색 ↗"),
+    directions && link(directions, directionsLabel)].filter(Boolean).join(" ");
 }
 
 /* ==================== 전체 동선 요약 + 인라인 지도 (카카오맵) ==================== */
@@ -498,7 +501,7 @@ function renderRouteSection(content, answer) {
       const focus = (i, position, coordinates) => {
         focused = true;
         map.panTo(position);
-        infoWin.setContent(popupHtml({ ...pts[i], ...coordinates }));
+        infoWin.setContent(popupHtml(kakaoLinks(pts[i]).notice ? pts[i] : { ...pts[i], ...coordinates }));
         infoWin.setPosition(position);
         infoWin.open(map);
       };
