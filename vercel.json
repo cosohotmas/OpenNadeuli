@@ -4,10 +4,16 @@
   "buildCommand": "cd frontend && npm install && npm run build:vercel",
   "outputDirectory": "frontend/dist",
   "framework": "vite",
+  "functions": {
+    "api/index.py": { "includeFiles": "backend/src/data/busan_station_coordinates.csv" }
+  },
   "headers": [
     {
       "source": "/",
-      "headers": [
+      "functions": {
+    "api/index.py": { "includeFiles": "backend/src/data/busan_station_coordinates.csv" }
+  },
+  "headers": [
         {
           "key": "Cache-Control",
           "value": "no-store"
@@ -16,7 +22,10 @@
     },
     {
       "source": "/(.*\\.html)",
-      "headers": [
+      "functions": {
+    "api/index.py": { "includeFiles": "backend/src/data/busan_station_coordinates.csv" }
+  },
+  "headers": [
         {
           "key": "Cache-Control",
           "value": "no-store"

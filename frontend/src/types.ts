@@ -8,6 +8,20 @@ export interface PublicSource {
   sourceUpdatedAt?: string | null;
 }
 
+export interface TransitStation {
+  code: string;
+  name: string;
+  line: string;
+  sourceType: 'live_api';
+  provider: string;
+  sourceUrl: string;
+  fetchedAt: string;
+  coordinateSourceUrl: string;
+  coordinateReferenceDate: string;
+  distanceM?: number;
+  facilities: { code: string; label: string; count: number }[];
+}
+
 /** 에이전트 응답에서 사용하는 카드 UI 타입 */
 export interface CourseCard extends PublicSource {
   no: number;
@@ -27,6 +41,7 @@ export interface CourseCard extends PublicSource {
   verifiedAttributes?: { label: string; value: string; field: string }[];
   accessibilityFetchedAt?: string | null;
   verificationNotice?: string;
+  nearbyStation?: TransitStation;
   confirmedAttributes?: CourseCard['verifiedAttributes'];
 }
 
@@ -64,6 +79,7 @@ export interface ChatMessage {
   cards?: CourseCard[];
   summary?: string[];
   visitNotes?: string[];
+  transitStations?: TransitStation[];
   labels?: string[];
   steps?: CourseStep[];
   invite?: string;
@@ -105,6 +121,7 @@ export interface CourseAnswer {
   cards: CourseCard[];
   summary: string[];
   visitNotes?: string[];
+  transitStations?: TransitStation[];
   invite: string;
   route: { points: RoutePoint[] };
   followups: string[];

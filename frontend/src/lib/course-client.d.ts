@@ -11,3 +11,10 @@ export function cardMetadata(card: import('../types').CourseCard): {
   fields: [string, string][];
 };
 export function familyInvite(places: import('../types').CourseCard[]): string;
+
+export const stationUseNote: string;
+export function stationInfo(station: import('../types').TransitStation): {
+  title: string;
+  facilities: string[];
+  source: string;
+};

@@ -28,3 +28,13 @@
 .course-meta-details dt { font-weight: 650; }
 .course-meta-details dd { margin: 0; overflow-wrap: anywhere; white-space: pre-line; }
 .card-links { display: flex; flex-wrap: wrap; align-items: center; gap: .65rem; }
+
+.course-station {
+  margin-block: .6rem;
+  padding: .65rem .8rem;
+  border-inline-start: 3px solid #8eafcb;
+  border-radius: .5rem;
+  background: #f5f8fc;
+  font-size: .92em;
+  overflow-wrap: anywhere;
+}

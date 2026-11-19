@@ -87,6 +87,16 @@ export function cardMetadata(card) {
   return { chips, fields };
 }
 
+export const stationUseNote = '이용 전 역사 설비 운행·점검 여부 확인 권장';
+
+export function stationInfo(station) {
+  return {
+    title: `${station.name}역 · ${station.line}`,
+    facilities: station.facilities.map(({ label, count }) => `${label} ${count}개`),
+    source: `${sourceLabel(station.sourceType)} · ${station.provider}`,
+  };
+}
+
 export function familyInvite(places) {
   const lines = ['💌 오픈나들이 · 가족 일정'];
   if (places.some((place) => place.sourceType === 'fallback_mock')) lines.push('시연용 샘플');
@@ -113,5 +123,13 @@ export function familyInvite(places) {
       lines.push(`https://map.kakao.com/link/map/Stop${place.no},${place.lat.toFixed(6)},${place.lng.toFixed(6)}`);
     }
   }
+  const stations = new Map(places.flatMap(({ nearbyStation }) =>
+    nearbyStation ? [[nearbyStation.code, nearbyStation]] : []));
+  const transit = [...stations.values()].flatMap((station) => {
+    const mobility = station.facilities.filter(({ code }) => ['elI', 'elO', 'ourbridge'].includes(code));
+    if (!mobility.length) return [];
+    return [`• ${stationInfo(station).title} · ${mobility.map(({ label, count }) => `${label} ${count}개`).join(' · ')}`];
+  });
+  if (transit.length) lines.push('', '🚇 인근 역사 설비 참고', ...transit, stationUseNote);
   return lines.join('\n');
 }
