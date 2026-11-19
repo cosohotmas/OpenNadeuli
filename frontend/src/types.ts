@@ -27,6 +27,7 @@ export interface CourseCard extends PublicSource {
   verifiedAttributes?: { label: string; value: string; field: string }[];
   accessibilityFetchedAt?: string | null;
   verificationNotice?: string;
+  confirmedAttributes?: CourseCard['verifiedAttributes'];
 }
 
 export interface RoutePoint {
@@ -62,6 +63,7 @@ export interface ChatMessage {
   intro?: string;
   cards?: CourseCard[];
   summary?: string[];
+  visitNotes?: string[];
   labels?: string[];
   steps?: CourseStep[];
   invite?: string;
@@ -102,6 +104,7 @@ export interface CourseAnswer {
   labels: string[];
   cards: CourseCard[];
   summary: string[];
+  visitNotes?: string[];
   invite: string;
   route: { points: RoutePoint[] };
   followups: string[];

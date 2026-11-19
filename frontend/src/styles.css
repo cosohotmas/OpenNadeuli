@@ -251,9 +251,7 @@ a { color: var(--brand-dark); }
 
 .invite-dialog { width: min(44rem, calc(100% - 1.5rem)); max-height: 88dvh; overflow: auto; border: 1px solid var(--line); border-radius: 1.1rem; padding: clamp(.8rem, 3vw, 1.3rem); color: var(--text); }
 .invite-dialog::backdrop { background: #142d286b; }
-.invite-preview { margin-block: .8rem; border: 1px solid var(--line); border-radius: .8rem; overflow: hidden; }
-.invite-preview h3 { margin: 0; padding: .65rem .8rem; background: var(--brand); color: white; font-size: 1rem; }
-.invite-preview p { max-height: 32dvh; overflow: auto; margin: 0; padding: .7rem .8rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.invite-links { display: grid; gap: .4rem; margin-block: .7rem; }
 .invite-dialog textarea { width: 100%; border: 1px solid var(--line); border-radius: .55rem; padding: .6rem; margin-bottom: .5rem; resize: vertical; }
 .toast { position: fixed; bottom: 1rem; inset-inline: 1rem; width: fit-content; margin-inline: auto; padding: .6rem .8rem; border-radius: .6rem; background: var(--brand-dark); color: white; }
 

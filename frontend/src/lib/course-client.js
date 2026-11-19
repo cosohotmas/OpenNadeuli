@@ -86,3 +86,32 @@ export function cardMetadata(card) {
   }
   return { chips, fields };
 }
+
+export function familyInvite(places) {
+  const lines = ['💌 오픈나들이 · 가족 일정'];
+  if (places.some((place) => place.sourceType === 'fallback_mock')) lines.push('시연용 샘플');
+  let day;
+  for (const place of places) {
+    if (place.day != null && place.day !== day) {
+      day = place.day;
+      lines.push('', `■ ${day}일차`);
+    }
+    lines.push('', `${place.time || '•'} ${place.name.trim().replace(/\s+/g, ' ')}`);
+    if (place.address) lines.push(`📍 ${place.address}`);
+    const confirmed = place.confirmedAttributes || [];
+    if (confirmed.length) {
+      lines.push(`✅ 확인된 무장애 항목 · ${confirmed.map(({ label, value }) =>
+        `${label}: ${value.replace(/\s+/g, ' ')}`).join(' / ')}`);
+    }
+    if (['식당', '카페'].includes(place.kind) && place.sourceType === 'live_api') {
+      lines.push('📞 방문 전 출입구·영업 확인 권장');
+    } else if (place.verificationNotice) {
+      lines.push(`📞 ${place.verificationNotice}`);
+    }
+    if (Number.isFinite(place.lat) && Number.isFinite(place.lng)
+        && Math.abs(place.lat) <= 90 && Math.abs(place.lng) <= 180) {
+      lines.push(`https://map.kakao.com/link/map/Stop${place.no},${place.lat.toFixed(6)},${place.lng.toFixed(6)}`);
+    }
+  }
+  return lines.join('\n');
+}

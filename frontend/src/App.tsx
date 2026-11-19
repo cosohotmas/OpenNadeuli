@@ -4,7 +4,7 @@ import { kakaoLinks } from './lib/kakao-route.js';
 import type { CourseCard, ChatMessage, CourseSchedule, CourseStep } from './types';
 import { SampleCourse } from './lib/sample-course';
 import { postCourse } from './lib/api';
-import { cardMetadata, sourceLines } from './lib/course-client.js';
+import { cardMetadata, familyInvite, sourceLines } from './lib/course-client.js';
 import CourseMap, { type CourseMapHandle } from './components/CourseMap';
 import TimeRange, { formatHour } from './components/TimeRange';
 
@@ -147,15 +147,9 @@ const App = () => {
   };
 
   const openInvite = (message: ChatMessage) => {
-    const places = (message.route?.points.length ? message.route.points : message.cards)?.map((card) =>
-      `- ${card.day ? `${card.day}일차 ${card.time} · ` : ''}${card.name}${card.address ? ` (${card.address})` : ''}`,
-    ).join('\n');
-    const checkpoints = message.summary?.length ? `\n\n안심 체크포인트\n${message.summary.map((line) => `- ${line}`).join('\n')}` : '';
     const cards = message.cards || [];
     setInvitePlaces(cards);
-    const links = cards.map((card) => `${card.name} ${kakaoLinks(card).map}`).join('\n');
-    const text = message.invite || `함께 나들이 가요!\n\n${places}${checkpoints}`;
-    setInviteText(links ? `${text}\n\n카카오맵\n${links}` : text);
+    setInviteText(familyInvite(cards));
     setToast(null);
     inviteDialogRef.current?.showModal();
   };
@@ -273,6 +267,12 @@ const App = () => {
                   <ul>{msg.summary.map((line) => <li key={line}>{line}</li>)}</ul>
                 </section>
               )}
+              {!!msg.visitNotes?.length && (
+                <section className="checkpoints">
+                  <h2>방문 전 확인 메모</h2>
+                  <ul>{msg.visitNotes.map((note) => <li key={note}>{note}</li>)}</ul>
+                </section>
+              )}
               {!!msg.cards?.length && (
                 <button className="btn btn-primary invite-button" type="button" onClick={() => openInvite(msg)}>
                   💌 가족 단톡방용 초대장 만들기
@@ -387,22 +387,20 @@ const App = () => {
           <h2 id="inviteTitle">나들이 초대장</h2>
           <button type="button" className="btn" onClick={() => inviteDialogRef.current?.close()}>닫기</button>
         </div>
-        <section className="invite-preview" aria-label="초대장 미리보기">
-          <h3>오픈나들이 · 가족 초대장</h3>
-          <p>{inviteText}</p>
-          {invitePlaces.map((card) => <div className="course-map-links" key={card.no}>
-            <strong>{card.name}</strong><ExternalMapLinks place={card} />
-          </div>)}
-        </section>
         <textarea
           aria-label="초대장 텍스트 편집"
           rows={8}
           value={inviteText}
           onChange={(event) => setInviteText(event.target.value)}
         />
+        <div className="invite-links" aria-label="장소별 빠른 링크">
+          {invitePlaces.map((card) => <div className="course-map-links" key={card.no}>
+            <strong>{card.name}</strong><ExternalMapLinks place={card} />
+          </div>)}
+        </div>
         <div>
           <button type="button" className="btn btn-primary" onClick={() => void copyInvite()}>
-            초대장 텍스트 복사
+            초대장 전체 복사
           </button>
 
         </div>

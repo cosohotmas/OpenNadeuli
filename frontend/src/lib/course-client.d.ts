@@ -10,3 +10,4 @@ export function cardMetadata(card: import('../types').CourseCard): {
   chips: { tone: string; text: string }[];
   fields: [string, string][];
 };
+export function familyInvite(places: import('../types').CourseCard[]): string;
