@@ -36,7 +36,7 @@ function popupFor(point: RoutePoint) {
   access.textContent = point.barrier.join(' · ');
   content.append(name, details, access);
   const links = kakaoLinks(point);
-  for (const [label, url] of [['카카오맵에서 열기 ↗', links.map], ['길찾기 ↗', links.directions]] as const) {
+  for (const [label, url] of [[links.mapLabel, links.map], ['주소로 검색 ↗', links.addressSearch], [links.directionsLabel, links.directions]] as const) {
     if (!url) continue;
     const link = document.createElement('a');
     link.href = url;
@@ -143,7 +143,7 @@ const CourseMap = forwardRef<CourseMapHandle, { points: RoutePoint[] }>(function
         pin.setAttribute('aria-label', `${point.no}번 ${point.name} 무장애 정보`);
         const showPopup = () => {
           map.panTo(position);
-          popup.setContent(popupFor({ ...point, ...coordinates }));
+          popup.setContent(popupFor(kakaoLinks(point).notice ? point : { ...point, ...coordinates }));
           popup.setPosition(position);
           popup.open(map);
         };
