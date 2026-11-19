@@ -4,9 +4,6 @@
   "buildCommand": "cd frontend && npm install && npm run build:vercel",
   "outputDirectory": "frontend/dist",
   "framework": "vite",
-  "functions": {
-    "api/index.py": { "includeFiles": "backend/src/data/busan_station_coordinates.csv" }
-  },
   "headers": [
     {
       "source": "/",

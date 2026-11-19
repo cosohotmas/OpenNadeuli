@@ -1,9 +1,8 @@
 """Join 부산교통공사 installation records to official station coordinates."""
-import csv
 import math
 import re
-from functools import lru_cache
-from pathlib import Path
+
+from ..data.busan_station_coordinates import STATION_COORDINATES
 
 SOURCE = {
     "provider": "부산교통공사 장애인 편의시설 정보",
@@ -18,13 +17,6 @@ FACILITIES = {
 }
 
 
-@lru_cache(maxsize=1)
-def station_coordinates():
-    path = Path(__file__).resolve().parents[1] / "data" / "busan_station_coordinates.csv"
-    with path.open(encoding="utf-8", newline="") as stream:
-        return {row["code"].lstrip("0"): row for row in csv.DictReader(stream)}
-
-
 def station_name(value):
     name = str(value or "").split("(")[0].strip()
     return "부산" if name == "부산역" else name
@@ -32,11 +24,13 @@ def station_name(value):
 
 def station_records(rows, fetched_at):
     records = []
-    coordinates = station_coordinates()
     for row in rows:
         code = str(row.get("scode") or "").strip().lstrip("0")
-        location = coordinates.get(code)
-        if not location or station_name(location["name"]) != station_name(row.get("sname")):
+        location = STATION_COORDINATES.get(code)
+        if not location:
+            continue
+        name, line, lat, lng, reference_date = location
+        if station_name(name) != station_name(row.get("sname")):
             continue
         facilities = []
         for field, label in FACILITIES.items():
@@ -45,11 +39,11 @@ def station_records(rows, fetched_at):
                 facilities.append({"code": field, "label": label, "count": int(count)})
         records.append({
             **SOURCE, "sourceType": "live_api", "fetchedAt": fetched_at,
-            "code": code, "name": station_name(location["name"]),
-            "line": location["line"].split()[-1], "facilities": facilities,
-            "lat": float(location["lat"]), "lng": float(location["lng"]),
+            "code": code, "name": station_name(name),
+            "line": line, "facilities": facilities,
+            "lat": lat, "lng": lng,
             "coordinateSourceUrl": COORDINATE_SOURCE,
-            "coordinateReferenceDate": location["reference_date"],
+            "coordinateReferenceDate": reference_date,
         })
     return records
 
