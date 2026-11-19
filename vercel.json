@@ -44,8 +44,8 @@
     "CORS_ORIGINS": ""
   },
   "functions": {
-    "app.py": {
-      "runtime": "python3.11"
+    "api/routes.py": {
+      "runtime": "python3.11@1.0.0"
     }
   }
 }
