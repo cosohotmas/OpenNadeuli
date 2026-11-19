@@ -48,7 +48,7 @@ class CourseRequest(BaseModel):
     text: str
     schedule: Optional[CourseSchedule] = None
     region: str | None = None
-    regionSource: Literal["selected", "location", "location_unavailable"] | None = None
+    regionSource: Literal["selected", "location", "location_recent", "location_unavailable"] | None = None
     locationStatus: Literal["denied", "timeout", "region_unknown", "unavailable"] | None = None
 
 
