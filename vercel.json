@@ -42,5 +42,10 @@
     "OPENNADEULI_USE_LIVE": "false",
     "PORT": "8899",
     "CORS_ORIGINS": ""
+  },
+  "functions": {
+    "app.py": {
+      "runtime": "python3.11"
+    }
   }
 }
