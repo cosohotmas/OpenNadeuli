@@ -8,7 +8,7 @@
 
 | 요구사항 | 구현 |
 | --- | --- |
-| 자연어 → 3개 공공 API 자율 호출·조합 | 규칙 기반 의도 분석(nlu.js) → 도구 조합 계획 → 도구 체이닝 실행(agent.js) |
+| 자연어 → 4개 공공 API 자율 호출·조합 | 규칙 기반 의도 분석(nlu.js) → 도구 조합 계획 → 도구 체이닝 실행(agent.js) |
 | 한국관광공사 열린관광지 API | `searchOpenTouristSpots` — 휠체어 대여·장애인 화장실·휠체어 진입 완비 장소 |
 | 국립공원공단·지자체 무장애 탐방로 API | `searchAccessibleTrails` — **최대 경사도 8% 이하** 데크길 필터링 |
 | 소상공인시장진흥공단 상권정보 API | `searchStepFreeRestaurants` — **출입구 턱 없는** 인근 식당(카페 종목 포함) |
@@ -83,7 +83,7 @@ node serve.mjs 8899   # 포트 8899 (백엔드와 포트 충돌 가능)
    │
    ├─ POST /api/course (app.py 라우터 → backend/src/api/routes.py)
    │   ├─ ① 의도 분석    backend/src/services/nlu.py: 지역/테마/동행/우천/일정 → 파라미터
-   │   ├─ ② 도구 조합 계획 3개 도구 호출 순서 확정
+   │   ├─ ② 도구 조합 계획 4개 도구 호출 순서 확정
    │   ├─ ③ 도구 자율 호출 backend/src/services/tools.py: call_tool()
    │   │     ① searchOpenTouristSpots     (한국관광공사 열린관광지·TourAPI)
    │   │     ② searchAccessibleTrails     (무장애 탐방로, maxSlope ≤ 8%)
@@ -131,7 +131,7 @@ node serve.mjs 8899   # 포트 8899 (백엔드와 포트 충돌 가능)
 - 일정 조립은 시간대 칸에 활동을 고정하지 않습니다 — 시작~종료 시간 범위와 식사/카페 옵션만으로 활동 수(2.5시간당 1개, 최대 3개)와 끼니·카페 시간 창을 계산해 유연하게 배치하고, 시간에 맞지 않는 이벤트는 제외하며 그 근거를 노트로 표시합니다.
 - 지역 인식은 `backend/src/services/nlu.py`의 `REGION_KEYWORDS` 사전 기준 — "동해"→강원, "서해"→인천, "남해"→경남, "포항·울진"→경북 등 바다 키워드를 포함한 전국 시·도를 인식하고, 호출 시 TourAPI 표준 지역코드(`AREA_CODE`)를 사용합니다. 내장 샘플이 없는 지역은 전국 샘플로 폴백하며 도구 노트에 근거를 표시합니다.
 - 탐방로(`②`)는 data.go.kr에 OpenAPI가 미제공(파일데이터만 확인)이라 내장 데이터로 검증합니다. 행안부 생활안전지도(safemap.go.kr) 연동은 TODO(확인 필요)입니다.
-- 한국관광공사_국문관광정보 서비스 (KorService2)
+- 한국관광공사_국문관광정보 서비스 (KorWithService2)
    - **[개발계정]한국관광공사_무장애 여행 정보** — End Point `KorWithService2` (전용 무장애 콘텐츠 + 상세 시설 검증)
    - **소상공인시장진흥공단_상가(상권)정보_api** — End Point `B553077/api/open/sdsc2` (반경내 상가업소 storeListInRadius)
    - (선택) 국립공원공단 탐방로 관련 서비스 — 신청 후 `js/tools.js`의 `LIVE_APIS.searchAccessibleTrails.url`에
