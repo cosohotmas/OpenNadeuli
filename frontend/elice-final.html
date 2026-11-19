@@ -2,6 +2,9 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
+  <link rel="icon" href="/favicon.ico" sizes="16x16 32x32" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>오픈나들이 · 휠체어·보행 약자를 위한 무장애 관광 AI 에이전트</title>
   <meta name="description" content="공공 무장애 데이터 3종(열린관광지·무장애 탐방로·상권정보)을 조합해 헛걸음 없는 나들이 코스를 추천하는 AI 에이전트" />
@@ -858,14 +861,17 @@ body {
       <!-- 일정·시간대 설정: 평소 한 줄 필, 클릭 시 아래로 아코디언 펼침 -->
       <div class="timebar-inline">
         <button id="timebarToggle" class="tb-pill" type="button" aria-expanded="false"
-                aria-controls="tbPanel" title="일정 및 시간대 상세 설정 펼치기/접기">
-          <span aria-hidden="true">⚙️</span><span>일정 및 시간대 상세 설정</span>
+                aria-controls="tbPanel" title="일정·시간대 및 지역 설정 펼치기/접기">
+          <span aria-hidden="true">⚙️</span><span>일정·시간대 및 지역 설정</span>
           <span id="tbHeadSummary" class="tb-pill-value"></span>
           <span class="tb-caret" aria-hidden="true">▾</span>
         </button>
 
         <!-- 상세 설정 패널 (아코디언: 버튼 아래로 펼쳐짐) -->
         <div id="tbPanel" class="tb-panel" hidden>
+          <div class="search-region">
+            <span>검색 지역</span><div id="searchRegion"></div>
+          </div>
           <div class="tb-panel-head">
             <div class="tb-tabs" role="tablist" aria-label="여행 형태 선택">
               <button type="button" class="tb-tab" data-trip="day" role="tab">당일 코스</button>
@@ -906,10 +912,7 @@ body {
         </div>
       </div>
 
-      <div class="search-region">
-        <span>검색 지역</span><div id="searchRegion"></div>
-        <button id="locationRetry" type="button" class="btn location-retry" hidden></button>
-      </div>
+      <button id="locationRetry" type="button" class="btn location-retry" hidden></button>
       <form id="chatForm" class="composer-form" autocomplete="off">
         <input id="chatInput" type="text" inputmode="text"
                placeholder="예) 주말에 휠체어 타고 산책할 만한 부산 근교 나들이 장소 찾아줘"
